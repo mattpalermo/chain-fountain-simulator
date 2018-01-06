@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Chain fountain simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background-size: 20px 20px;
+      background-image:
+        linear-gradient(to right, lavender 1px, transparent 1px),
+        linear-gradient(to bottom, lavender 1px, transparent 1px);
+    }
+    h2 { font-size: large }
+    #simulationCanvas {
+      width: 100%;
+      height: calc(100vh - 4em);
+    }
+    #controls {margin-top: 1em}
+    #controls input { width: 5ch }
+    #parameters label { display: block }
+    #parameters input { width: 6ch }
+    #parameters em { font-size: small }
+  </style>
+</head>
+<body>
+  <h1>Chain fountain simulator</h1>
+
+  <div id="parameters">
+    <h2>Parameters</h2>
+    <label>Bead mass (g):
+      <input id="beadmass" type="number" value="5" step="any">
+    </label>
+    <label>Interbead distance (mm):
+      <input id="interbead-distance" type="number" value="5" step="any">
+    </label>
+    <label>Initial bead height (m):
+      <input id="initial-height" type="number" value="2" step="any">
+    </label>
+    <label>Integration step (ms):
+      <input id="integration-step" type="number" value="10" step="any">
+    </label>
+    <em>Note: changing parameters resets the simulation</em>
+  </div>
+
+  <div id="controls">
+    <button id="reset">🔄</button>
+    <button id="rewind">◀️</button>
+    <button id="pause">⏸</button>
+    <button id="play">▶️</button>
+    <label>Time (s):
+      <input id="time" type="number" value="0" step="any">
+    </label>
+    <label>Play speed:
+      <input id="play-speed" type="number" value="1" step="any">
+    </label>
+  </div>
+
+  <canvas id="simulationCanvas"></canvas>
+
+  <a id="export" href="" download="mould-integration.json">Export integration results</a>
+</body>
+</html>

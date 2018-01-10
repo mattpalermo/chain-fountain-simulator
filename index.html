@@ -27,7 +27,7 @@
       box-shadow: 0px 0px 5px black;
     }
 
-    #simulationCanvas {
+    #simulation-canvas {
       box-sizing: border-box;
       width: 100%;
       height: calc(100vh - 4em);
@@ -120,39 +120,238 @@
     </a>
   </div>
 
-  <div id="parameters">
+  <div id="parameters" style="visibility:hidden">
     <div class="header">
-      <button id="close-parameters">❌</button>
+      <button id="close-parameters" onclick="closeParameters()">❌</button>
       <h2>Parameters</h2>
     </div>
     <label>Bead mass (g):
-      <input id="beadmass" type="number" value="5" step="any">
+      <input id="bead-mass" type="number" value="5" step="any">
     </label>
     <label>Link length (mm):
       <input id="link-length" type="number" value="5" step="any">
     </label>
     <label>Initial height (m):
-      <input id="initial-height" type="number" value="2" step="any">
+      <input id="initial-height" type="number" value="1" step="any">
     </label>
-    <label>Integration step (ms):
-      <input id="integration-step" type="number" value="10" step="any">
+    <label>Integration time step (ms):
+      <input id="time-step" type="number" value="10" step="any">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>
 
-  <canvas id="simulationCanvas"></canvas>
+  <canvas id="simulation-canvas"></canvas>
 
   <div id="controls">
-    <button id="toggle-play">▶️</button>
+    <button id="toggle-play" onclick="togglePlay()">▶️</button>
     <label>Time (s):
       <input id="time" type="number" value="0" step="any">
     </label>
-    <button id="toggle-parameters">
+    <button id="toggle-parameters" onclick="toggleParameters()">
       ⚙ <span class="extra-content">Parameters</span>
     </button>
     <a id="export" href="" download="mould-integration.json">
       💾 <span class="extra-content">Export integration data</span>
     </a>
   </div>
+
+  <script>
+    // UI elements
+    let elParameters = document.getElementById("parameters");
+    let elTogglePlay = document.getElementById("toggle-play");
+    let elTime = document.getElementById("time");
+    let elBeadMass = document.getElementById("bead-mass");
+    let elLinkLength = document.getElementById("link-length");
+    let elInitialHeight = document.getElementById("initial-height");
+    let elTimeStep = document.getElementById("time-step");
+    let elCanvas = document.getElementById("simulation-canvas");
+    let ctx = elCanvas.getContext("2d");
+
+    // Constants
+    let platformWidth = 0.1;
+    let platformHeight = 0.02;
+    let platformColour = "#000000";
+    let beadRadius = 0.01;
+    let beadColour = "#FF0000";
+    let linkColour = "#0000FF";
+
+    // Global variables
+    let currentIntegration;
+    let lastFrameTime;
+    let curAnimationTime = 0; // This time might not coincide with an integration step.
+    let animationPlaying = false;
+    let playStartTime;
+
+    // When the toggle parameters UI button is clicked
+    function toggleParameters() {
+      if(elParameters.style.visibility === "hidden") {
+        elParameters.style.visibility = "visible";
+      } else {
+        elParameters.style.visibility = "hidden";
+      }
+    }
+
+    // When the close parameters UI button is clicked
+    function closeParameters() {
+      elParameters.style.visibility = "hidden";
+    }
+
+    // When the UI play button is clicked
+    function togglePlay() {
+      if (animationPlaying) {
+        animationPlaying = false;
+        elTogglePlay.innerHTML = "▶️";
+      } else {
+        animationPlaying = true;
+        playStartTime = performance.now();
+        elTogglePlay.innerHTML = "⏸";
+      }
+    }
+
+    // Create an object representing a whole integration
+    function newIntegration() {
+      let beadMass = Number(elBeadMass.value);
+      let linkLength = Number(elLinkLength.value) / 1000;
+      let initialHeight = Number(elInitialHeight.value);
+      let timeStep = Number(elTimeStep.value) / 1000;
+
+      return {
+        parameters: {
+          beadMass: beadMass,
+          linkLength: linkLength,
+          initialHeight: initialHeight,
+          timeStep: timeStep
+        },
+        timeSteps: [
+          {
+            beads: [
+              {
+                x: 0,
+                y: initialHeight,
+                dx: 0.1,
+                dy: 0.1
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    // Integrate one time step. Modifies existing integration object.
+    function integrate(integration) {
+      // Add a new timeStep object to integration.timeSteps array
+      let params = integration.parameters;
+
+
+      let timeSteps = integration.timeSteps;
+      let curTimeStep = timeSteps[timeSteps.length - 1];
+      let newTimeStep = {
+        beads: []
+      };
+
+      // This is only temporary
+      newTimeStep.beads = curTimeStep.beads.map(function(bead) {
+        return {
+          x: bead.x + bead.dx * params.timeStep,
+          y: bead.y + bead.dy * params.timeStep,
+          dx: bead.dx,
+          dy: bead.dy
+        };
+      });
+
+      integration.timeSteps.push(newTimeStep);
+    }
+
+    function integrateUntil(integration, endTimeStep) {
+      while (integration.timeSteps.length-1 < endTimeStep) {
+        integrate(integration);
+      }
+    }
+
+    // Draw an integration at a particular time step onto a 2d context
+    function draw(integration, timeStepIdx, ctx) {
+      let initialHeight = integration.parameters.initialHeight;
+      let timeStep = integration.timeSteps[timeStepIdx];
+      let beads = timeStep.beads;
+
+      // TODO: Do this properly
+      ctx.clearRect(-500, -500, 1000, 1000);
+
+      // Draw platform
+      ctx.beginPath();
+      ctx.rect(-platformWidth/2, initialHeight - platformHeight,
+        platformWidth, platformHeight);
+      //ctx.rect(-5, -5, 10, 10);
+      ctx.fillStyle = platformColour;
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw floor
+      ctx.beginPath();
+      ctx.rect(0, 0, ctx.canvas.width, -platformHeight);
+      ctx.fillStyle = platformColour;
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw links
+      ctx.beginPath();
+      ctx.moveTo(beads[0].x, beads[0].y);
+      beads.forEach(function(bead, index) {
+        if (index > 0) ctx.lineTo(bead.x, bead.y);
+      });
+      ctx.stroke();
+      ctx.closePath();
+
+      // Draw beads
+      ctx.fillStyle = beadColour;
+      beads.forEach(function(bead) {
+        ctx.beginPath();
+        ctx.arc(bead.x, bead.y, beadRadius, 0, Math.PI*2);
+        ctx.fill();
+        ctx.closePath();
+      });
+    }
+
+    function onAnimationFrame(frameTime) {
+      if (currentIntegration) {
+        if (animationPlaying && lastFrameTime && lastFrameTime > playStartTime) {
+          curAnimationTime += (frameTime - lastFrameTime)/1000;
+        }
+        let timeStep = currentIntegration.parameters.timeStep;
+        let curTimeStep = Math.floor(curAnimationTime / timeStep);
+
+        elTime.value = Math.floor(curAnimationTime);
+        integrateUntil(currentIntegration, curTimeStep);
+        draw(currentIntegration, curTimeStep, ctx);
+      }
+
+      lastFrameTime = frameTime;
+      window.requestAnimationFrame(onAnimationFrame);
+    }
+
+    function onCanvasResize() {
+      /* NOTE: At the moment, this only fires on window resize,
+         which is most likely when the canvas will resize.
+         When ResizeObserver gets implemented in browsers,
+         use that instead. */
+
+      let canvasRect = elCanvas.getBoundingClientRect();
+      elCanvas.width = canvasRect.width;
+      elCanvas.height = canvasRect.height;
+
+      if (currentIntegration) {
+        let initialHeight = currentIntegration.parameters.initialHeight;
+        let scaleFactor = elCanvas.height/(1.5*initialHeight);
+        ctx.setTransform(scaleFactor, 0, 0, -scaleFactor, 50, ctx.canvas.height);
+      }
+    }
+
+    currentIntegration = newIntegration();
+
+    window.addEventListener("resize", onCanvasResize);
+    onCanvasResize();
+    window.requestAnimationFrame(onAnimationFrame);
+
+  </script>
 </body>
 </html>

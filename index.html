@@ -87,7 +87,7 @@
     }
     #controls > * {margin-left: 0.5em; margin-right: 0.5em}
     #controls label {margin-right: auto }
-    #controls input { width: 5ch }
+    #controls input { width: 8ch }
 
     h1 {
       margin: 0;
@@ -126,16 +126,16 @@
       <h2>Parameters</h2>
     </div>
     <label>Bead mass (g):
-      <input id="bead-mass" type="number" value="5" step="any">
+      <input id="bead-mass" type="number" value="5" step="any" onchange="setParameter()">
     </label>
     <label>Link length (mm):
-      <input id="link-length" type="number" value="5" step="any">
+      <input id="link-length" type="number" value="5" step="any" onchange="setParameter()">
     </label>
     <label>Initial height (m):
-      <input id="initial-height" type="number" value="1" step="any">
+      <input id="initial-height" type="number" value="1" step="any" onchange="setParameter()">
     </label>
     <label>Integration time step (ms):
-      <input id="time-step" type="number" value="10" step="any">
+      <input id="time-step-size" type="number" value="10" step="any" onchange="setParameter()">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>
@@ -145,7 +145,7 @@
   <div id="controls">
     <button id="toggle-play" onclick="togglePlay()">▶️</button>
     <label>Time (s):
-      <input id="time" type="number" value="0" step="any">
+      <input id="time" type="number" value="0" step="any" min="0" onchange="userSetTime()">
     </label>
     <button id="toggle-parameters" onclick="toggleParameters()">
       ⚙ <span class="extra-content">Parameters</span>
@@ -163,7 +163,7 @@
     let elBeadMass = document.getElementById("bead-mass");
     let elLinkLength = document.getElementById("link-length");
     let elInitialHeight = document.getElementById("initial-height");
-    let elTimeStep = document.getElementById("time-step");
+    let elTimeStepSize = document.getElementById("time-step-size");
     let elCanvas = document.getElementById("simulation-canvas");
     let ctx = elCanvas.getContext("2d");
 
@@ -180,7 +180,7 @@
     let lastFrameTime;
     let curAnimationTime = 0; // This time might not coincide with an integration step.
     let animationPlaying = false;
-    let playStartTime;
+    let firstFrame = true;
 
     // When the toggle parameters UI button is clicked
     function toggleParameters() {
@@ -196,16 +196,47 @@
       elParameters.style.visibility = "hidden";
     }
 
+    // When one of the parameters are set
+    function setParameter() {
+      pauseAnimation();
+      setCurrentIntegration(newIntegration());
+    }
+
     // When the UI play button is clicked
     function togglePlay() {
       if (animationPlaying) {
-        animationPlaying = false;
-        elTogglePlay.innerHTML = "▶️";
+        pauseAnimation();
       } else {
-        animationPlaying = true;
-        playStartTime = performance.now();
-        elTogglePlay.innerHTML = "⏸";
+        playAnimation();
       }
+    }
+
+    function playAnimation() {
+      animationPlaying = true;
+      firstFrame = true;
+      elTogglePlay.innerHTML = "⏸";
+    }
+
+    function pauseAnimation() {
+      animationPlaying = false;
+      elTogglePlay.innerHTML = "▶️";
+    }
+
+    function setAnimationTime(time) {
+      curAnimationTime = time;
+      if (currentIntegration) {
+        let timeStepSize = currentIntegration.parameters.timeStepSize;
+        let timeIndex = Math.floor(time / timeStepSize);
+        time = timeIndex * timeStepSize;
+      }
+      elTime.value = time;
+    }
+
+    // When the UI time value is changed by the user
+    function userSetTime() {
+      let time = Number(elTime.value);
+      if (time < 0) time = 0;
+      setAnimationTime(time);
     }
 
     // Create an object representing a whole integration
@@ -213,14 +244,14 @@
       let beadMass = Number(elBeadMass.value);
       let linkLength = Number(elLinkLength.value) / 1000;
       let initialHeight = Number(elInitialHeight.value);
-      let timeStep = Number(elTimeStep.value) / 1000;
+      let timeStepSize = Number(elTimeStepSize.value) / 1000;
 
       return {
         parameters: {
           beadMass: beadMass,
           linkLength: linkLength,
           initialHeight: initialHeight,
-          timeStep: timeStep
+          timeStepSize: timeStepSize
         },
         timeSteps: [
           {
@@ -252,8 +283,8 @@
       // This is only temporary
       newTimeStep.beads = curTimeStep.beads.map(function(bead) {
         return {
-          x: bead.x + bead.dx * params.timeStep,
-          y: bead.y + bead.dy * params.timeStep,
+          x: bead.x + bead.dx * params.timeStepSize,
+          y: bead.y + bead.dy * params.timeStepSize,
           dx: bead.dx,
           dy: bead.dy
         };
@@ -269,9 +300,9 @@
     }
 
     // Draw an integration at a particular time step onto a 2d context
-    function draw(integration, timeStepIdx, ctx) {
+    function draw(integration, timeIndex, ctx) {
       let initialHeight = integration.parameters.initialHeight;
-      let timeStep = integration.timeSteps[timeStepIdx];
+      let timeStep = integration.timeSteps[timeIndex];
       let beads = timeStep.beads;
 
       // TODO: Do this properly
@@ -314,19 +345,35 @@
 
     function onAnimationFrame(frameTime) {
       if (currentIntegration) {
-        if (animationPlaying && lastFrameTime && lastFrameTime > playStartTime) {
-          curAnimationTime += (frameTime - lastFrameTime)/1000;
-        }
-        let timeStep = currentIntegration.parameters.timeStep;
-        let curTimeStep = Math.floor(curAnimationTime / timeStep);
 
-        elTime.value = Math.floor(curAnimationTime);
-        integrateUntil(currentIntegration, curTimeStep);
-        draw(currentIntegration, curTimeStep, ctx);
+        // If animation is playing progress animation time.
+        // Don't progress on first frame since the lastFrameTime could
+        // have been very long ago.
+        if (animationPlaying) {
+          if (!firstFrame && lastFrameTime) {
+            setAnimationTime(curAnimationTime + (frameTime - lastFrameTime)/1000);
+          } else {
+            firstFrame = false;
+          }
+          lastFrameTime = frameTime;
+        }
+
+        let timeStepSize = currentIntegration.parameters.timeStepSize;
+        let curTimeIndex = Math.floor(curAnimationTime / timeStepSize);
+
+        integrateUntil(currentIntegration, curTimeIndex);
+        draw(currentIntegration, curTimeIndex, ctx);
       }
 
-      lastFrameTime = frameTime;
       window.requestAnimationFrame(onAnimationFrame);
+    }
+
+    function setCanvasTransform() {
+      if (currentIntegration) {
+        let initialHeight = currentIntegration.parameters.initialHeight;
+        let scaleFactor = elCanvas.height/(1.5*initialHeight);
+        ctx.setTransform(scaleFactor, 0, 0, -scaleFactor, 50, ctx.canvas.height);
+      }
     }
 
     function onCanvasResize() {
@@ -338,18 +385,19 @@
       let canvasRect = elCanvas.getBoundingClientRect();
       elCanvas.width = canvasRect.width;
       elCanvas.height = canvasRect.height;
-
-      if (currentIntegration) {
-        let initialHeight = currentIntegration.parameters.initialHeight;
-        let scaleFactor = elCanvas.height/(1.5*initialHeight);
-        ctx.setTransform(scaleFactor, 0, 0, -scaleFactor, 50, ctx.canvas.height);
-      }
+      setCanvasTransform();
     }
 
-    currentIntegration = newIntegration();
+    function setCurrentIntegration(integration) {
+      pauseAnimation();
+      setAnimationTime(0);
+      currentIntegration = integration;
+      setCanvasTransform();
+    }
 
     window.addEventListener("resize", onCanvasResize);
     onCanvasResize();
+    setCurrentIntegration(newIntegration());
     window.requestAnimationFrame(onAnimationFrame);
 
   </script>

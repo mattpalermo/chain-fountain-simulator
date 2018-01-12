@@ -120,7 +120,7 @@
     </a>
   </div>
 
-  <div id="parameters" style="visibility:hidden">
+  <div id="parameters">
     <div class="header">
       <button id="close-parameters" onclick="closeParameters()">❌</button>
       <h2>Parameters</h2>
@@ -135,7 +135,7 @@
       <input id="initial-height" type="number" value="1" step="any" onchange="setParameter()">
     </label>
     <label>Integration time step (ms):
-      <input id="time-step-size" type="number" value="10" step="any" onchange="setParameter()">
+      <input id="time-step-size" type="number" value="1" step="any" onchange="setParameter()">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>
@@ -168,11 +168,12 @@
     let ctx = elCanvas.getContext("2d");
 
     // Constants
-    let platformWidth = 0.1;
+    let platformWidth = 0.02;
     let platformHeight = 0.02;
     let platformColour = "#000000";
     let beadRadius = 0.01;
     let beadColour = "#FF0000";
+    let linkWidth = 0.005
     let linkColour = "#0000FF";
 
     // Global variables
@@ -198,7 +199,6 @@
 
     // When one of the parameters are set
     function setParameter() {
-      pauseAnimation();
       setCurrentIntegration(newIntegration());
     }
 
@@ -239,19 +239,31 @@
       setAnimationTime(time);
     }
 
+    /**
+    START INTEGRATION MATH
+    **/
+
     // Create an object representing a whole integration
     function newIntegration() {
       let beadMass = Number(elBeadMass.value);
       let linkLength = Number(elLinkLength.value) / 1000;
       let initialHeight = Number(elInitialHeight.value);
       let timeStepSize = Number(elTimeStepSize.value) / 1000;
+      let gravity = 9.8 // m.s**-2
+      // Link stiffness (s**-2.g**-1) derived from k=F/dx where k is the link
+      // stiffness, F is a known force (gravity) and dx is a known displacement
+      // (half the link length). Basically, under gravity, the link should stretch
+      // to 1.5 * link length.
+      let linkStiffness = (gravity / beadMass) / (0.1 * linkLength);
 
       return {
         parameters: {
           beadMass: beadMass,
           linkLength: linkLength,
           initialHeight: initialHeight,
-          timeStepSize: timeStepSize
+          timeStepSize: timeStepSize,
+          gravity: gravity,
+          linkStiffness: linkStiffness
         },
         timeSteps: [
           {
@@ -259,8 +271,10 @@
               {
                 x: 0,
                 y: initialHeight,
-                dx: 0.1,
-                dy: 0.1
+                vx: 5,
+                vy: 5,
+                ax: 0, // Used and populated during integration
+                ay: 0 // Used and populated during integration
               }
             ]
           }
@@ -273,25 +287,79 @@
       // Add a new timeStep object to integration.timeSteps array
       let params = integration.parameters;
 
-
       let timeSteps = integration.timeSteps;
       let curTimeStep = timeSteps[timeSteps.length - 1];
-      let newTimeStep = {
-        beads: []
-      };
+      let curBeads = curTimeStep.beads;
+      let newTimeStep = { beads: [] };
 
-      // This is only temporary
-      newTimeStep.beads = curTimeStep.beads.map(function(bead) {
-        return {
-          x: bead.x + bead.dx * params.timeStepSize,
-          y: bead.y + bead.dy * params.timeStepSize,
-          dx: bead.dx,
-          dy: bead.dy
+      if (timeSteps.length < 10) {
+        console.log("Time: " + timeSteps.length - 1);
+        console.log(curBeads);
+      }
+
+      // Find forces acting on each bead
+      for (let i = 0; i < curBeads.length; i++) {
+        // gravity
+        curBeads[i].ay += -params.gravity;
+
+        // Link tension
+        if (i < curBeads.length - 1) {
+          let dx = curBeads[i+1].x - curBeads[i].x;
+          let dy = curBeads[i+1].y - curBeads[i].y;
+          let linkLength = Math.sqrt(dx**2 + dy**2);
+          let linkDisplacement = linkLength - params.linkLength;
+          if (linkDisplacement > 0) {
+            curBeads[i].ax += params.linkStiffness * dx / params.beadMass;
+            curBeads[i].ay += params.linkStiffness * dy / params.beadMass;
+            curBeads[i+1].ax -= params.linkStiffness * dx / params.beadMass;
+            curBeads[i+1].ay -= params.linkStiffness * dy / params.beadMass;
+          }
+        }
+      }
+
+      // Integrate bead velocity and position
+      newTimeStep.beads = curBeads.map(function(bead) {
+        let updatedBead = {
+          x: bead.x + bead.vx * params.timeStepSize,
+          y: bead.y + bead.vy * params.timeStepSize,
+          vx: bead.vx + bead.ax * params.timeStepSize,
+          vy: bead.vy + bead.ay * params.timeStepSize,
+          ax: 0, // Will be filled out in the next integration
+          ay: 0 // Will be filled out in the next integration
         };
+        // If the bead hasn't cleared the platform, it can't move below
+        // the initial height.
+        if (bead.y >= params.initialHeight
+          && bead.x <= platformWidth/2 && bead.x >= -platformWidth/2
+          && updatedBead.y < params.initialHeight) {
+          updatedBead.y = params.initialHeight;
+          updatedBead.vy = 0;
+        }
+        return updatedBead;
       });
+
+      // Spawn new bead if nessesary
+      let lastBead = newTimeStep.beads[newTimeStep.beads.length-1];
+      let dx = lastBead.x;
+      let dy = lastBead.y - params.initialHeight;
+      let distFromOrigin = Math.sqrt(dx**2 + dy**2);
+      if (distFromOrigin > params.linkLength) {
+        newTimeStep.beads.push({
+          x: 0, y: params.initialHeight, vx: 0, vy: 0, ax: 0, ay: 0
+        });
+      }
+
+      // Remove first bead if nessesary
+      if(newTimeStep.beads[0].y < 0) {
+        newTimeStep.beads.shift();
+      }
 
       integration.timeSteps.push(newTimeStep);
     }
+
+    /**
+    END INTEGRATION MATH
+    **/
 
     function integrateUntil(integration, endTimeStep) {
       while (integration.timeSteps.length-1 < endTimeStep) {
@@ -330,6 +398,8 @@
       beads.forEach(function(bead, index) {
         if (index > 0) ctx.lineTo(bead.x, bead.y);
       });
+      ctx.lineWidth = linkWidth;
+      ctx.strokeStyle = linkColour;
       ctx.stroke();
       ctx.closePath();
 
@@ -391,6 +461,7 @@
     function setCurrentIntegration(integration) {
       pauseAnimation();
       setAnimationTime(0);
+      elTime.step = integration.parameters.timeStepSize;
       currentIntegration = integration;
       setCanvasTransform();
     }

@@ -4,6 +4,375 @@
   <meta charset="utf-8" />
   <title>Chain fountain simulator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="numeric-1.2.6.js"></script>
+  <script>
+    const platformHeight = 0.02;
+    const platformColour = "#000000";
+    const beadRadius = 0.01;
+    const beadColour = "#FF0000";
+    const linkWidth = 0.005
+    const linkColour = "#0000FF";
+
+    let initialized = false;
+    let UI; // Contains UI elements after initialization
+    let state; // Contains the simulator state.
+
+    // Performs set up after DOM content has loaded
+    function initialize() {
+      UI = getUI();
+      state = {};
+      initResizeFixing();
+      setIntegration(newIntegration(readParameters()));
+      startDrawLoop();
+      initUICallbacks();
+      initialized = true;
+    }
+
+    function getUI() {
+      let UI = {params: {}};
+      let ids;
+
+      // Most UI controls
+      ids = ["parameters", "closeParameters", "toggleParameters",
+        "togglePlay", "animationTime", "canvas", "overlayInfo"];
+      ids.forEach((id) => UI[id] = document.getElementById(id));
+
+      // Parameter inputs
+      ids = ["beadMass", "linkLength", "initialHeight",
+        "timeStepSize", "velocity", "linkStiffness", "gravity",
+        "platformWidth"];
+      ids.forEach((id) => UI.params[id] = document.getElementById(id));
+
+      // also put the canvas ctx in here
+      UI.ctx = UI.canvas.getContext("2d");
+      return UI
+    }
+
+    function initResizeFixing() {
+      // Use ResizeObserver when available
+      window.addEventListener("resize", fixCanvasSize);
+      fixCanvasSize();
+    }
+
+    function fixCanvasSize() {
+      let canvasRect = UI.canvas.getBoundingClientRect();
+      UI.canvas.width = canvasRect.width;
+      UI.canvas.height = canvasRect.height;
+      resetCanvasTransform();
+    }
+
+    function setIntegration(integration) {
+      UI.overlayInfo.textContent = "integration set";
+      stopIntegrationLoop();
+      pause();
+      state.integration = integration;
+      setAnimationTime(0);
+      // Set UI value to display the new integration
+      UI.animationTime.step = integration.params.timeStepSize;
+      resetCanvasTransform();
+    }
+
+    function setAnimationTime(time) {
+      // Set internal time
+      state.animationTime = time;
+      // Display time step rounded time
+      let timeStepSize = state.integration.params.timeStepSize;
+      let timeIndex = Math.floor(time / timeStepSize);
+      time = timeIndex * timeStepSize;
+      UI.animationTime.value = time;
+    }
+
+    function resetCanvasTransform() {
+      if (!state.integration) return;
+      let initialHeight = state.integration.params.initialHeight;
+      let scaleFactor = UI.canvas.height/(1.5*initialHeight);
+      UI.ctx.setTransform(scaleFactor, 0, 0, -scaleFactor, 50, UI.canvas.height);
+    }
+
+    function startDrawLoop() {
+      window.requestAnimationFrame(draw);
+    }
+
+    function draw(frameTime) {
+      const timeStepSize = state.integration.params.timeStepSize;
+      const lastTimeIndex = state.integration.timeSlices.length-1;
+      const lastTime = lastTimeIndex * timeStepSize;
+
+      if (state.playing) {
+        if (state.lastFrameTime) {
+          const timeDiff = (frameTime - state.lastFrameTime) / 1000;
+          const newTime = state.animationTime + timeDiff;
+          if (!(newTime > lastTime)) {
+            setAnimationTime(newTime);
+          } else if (!(state.animationTime > lastTime)) {
+            setAnimationTime(lastTime);
+          } else {
+            // Keep animation time the same. Wait for integration to catch up.
+          }
+        }
+        state.lastFrameTime = frameTime;
+      }
+
+      const timeIndex = Math.floor(state.animationTime / timeStepSize);
+      if (timeIndex > lastTimeIndex) {
+        // TODO: Should this be a waiting animation?
+        drawIntegration(lastTimeIndex);
+      } else {
+        drawIntegration(timeIndex);
+      }
+
+      // Let's just do this forever!
+      window.requestAnimationFrame(draw);
+    }
+
+    function drawIntegration(timeIndex) {
+      const initialHeight = state.integration.params.initialHeight;
+      const platformWidth = state.integration.params.platformWidth;
+      const beads = state.integration.timeSlices[timeIndex];
+      const ctx = UI.ctx;
+
+      // TODO: Do this properly
+      ctx.clearRect(-500, -500, 1000, 1000);
+
+      // Draw platform
+      ctx.beginPath();
+      ctx.rect(-platformWidth/2, initialHeight - platformHeight,
+        platformWidth, platformHeight);
+      //ctx.rect(-5, -5, 10, 10);
+      ctx.fillStyle = platformColour;
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw floor
+      ctx.beginPath();
+      ctx.rect(0, 0, UI.canvas.width, -platformHeight);
+      ctx.fillStyle = platformColour;
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw links
+      ctx.beginPath();
+      ctx.moveTo(beads[0], beads[1]);
+      for (let i = 0;  i < beads.length; i = i + 4) {
+        if (i > 0) ctx.lineTo(beads[i], beads[i+1]);
+      }
+      ctx.lineWidth = linkWidth;
+      ctx.strokeStyle = linkColour;
+      ctx.stroke();
+      ctx.closePath();
+
+      // Draw beads
+      ctx.fillStyle = beadColour;
+      for (let i = 0; i < beads.length; i = i + 4) {
+        ctx.beginPath();
+        ctx.arc(beads[i], beads[i+1], beadRadius, 0, Math.PI*2);
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+
+    function initUICallbacks() {
+      // Parameters window
+      UI.closeParameters.addEventListener("click", closeParameters);
+      UI.toggleParameters.addEventListener("click", toggleParameters);
+      // Parameter inputs
+      for (const id in UI.params) {
+        UI.params[id].addEventListener("change", paramChanged);
+      }
+      // Simulation controls
+      UI.togglePlay.addEventListener("click", togglePlay);
+      UI.animationTime.addEventListener("change", userSetAnimationTime);
+    }
+
+    function toggleParameters() {
+      if(UIParameters.style.visibility === "hidden") {
+        elParameters.style.visibility = "visible";
+      } else {
+        elParameters.style.visibility = "hidden";
+      }
+    }
+
+    function closeParameters() {
+      elParameters.style.visibility = "hidden";
+    }
+
+    function paramChanged() {
+      setIntegration(newIntegration(readParameters()));
+    }
+
+    function togglePlay() {
+      if (state.playing) {
+        pause();
+      } else {
+        play();
+      }
+    }
+
+    function play() {
+      state.playing = true;
+      firstFrame = true;
+      UI.togglePlay.textContent = "⏸";
+      startIntegrationLoop();
+    }
+
+    function pause() {
+      state.playing = false;
+      state.lastFrameTime = undefined;
+      UI.togglePlay.textContent = "▶️";
+    }
+
+    function userSetAnimationTime() {
+      let time = Number(UI.animationTime.value);
+      setAnimationTime(time<0 ? 0 : time);
+      startIntegrationLoop();
+    }
+
+    function readParameters() {
+      const params = {};
+      params.beadMass = Number(UI.params.beadMass.value);
+      params.linkLength = Number(UI.params.linkLength.value) / 1000;
+      params.initialHeight = Number(UI.params.initialHeight.value);
+      params.timeStepSize = Number(UI.params.timeStepSize.value) / 1000;
+      params.velocity = Number(UI.params.velocity.value);
+      params.linkStiffness = Number(UI.params.linkStiffness.value);
+      params.gravity = Number(UI.params.gravity.value);
+      params.platformWidth = Number(UI.params.platformWidth.value) / 100;
+      console.log(params);
+      return params;
+    }
+
+    // Create an object representing a whole integration
+    function newIntegration(params) {
+      //const vxy = params.velocity / Math.sqrt(2);
+      return {
+        params: params,
+        timeSlices: [
+          [ // (t_0)
+            0, params.initialHeight, params.velocity, params.velocity // Initial bead
+          ]
+        ]
+      };
+    }
+
+    function startIntegrationLoop() {
+      state.integrating = true;
+      setTimeout(integrationLoop);
+    }
+
+    function stopIntegrationLoop() {
+      state.integrating = false;
+    }
+
+    function integrationLoop() {
+      if (state.integrating) {
+        const bufferRoom = 1 // (s)
+        const lastTimeIndex = state.integration.timeSlices.length-1;
+        const lastTime = lastTimeIndex * state.integration.params.timeStepSize;
+
+        if (lastTime < state.animationTime + bufferRoom) {
+          integrate(state.integration);
+          const newTime = lastTime + state.integration.params.timeStepSize;
+          UI.overlayInfo.textContent = "Integration progress (s): " + newTime;
+          setTimeout(integrationLoop);
+        } else {
+          setTimeout(integrationLoop, 100);
+        }
+      }
+    }
+
+    // Integrate one time step...?
+    function integrate(integration) {
+      const params = integration.params;
+      const dt = params.timeStepSize;
+      const beads = integration.timeSlices[integration.timeSlices.length-1];
+      let newBeads, sol;
+
+      newBeads = beads;
+      for (let i = 0; i<1; i++) {
+        sol = numeric.dopri(0,dt/1,newBeads,(t, y) => derivative(params, y),1e-12,10000)
+        newBeads = sol.y[sol.y.length-1];
+        //let newBeads = euler(0, beads, (t, y) => derivative(params, y), dt);
+      }
+
+      // Is it time for a new bead at the source?
+      const x = beads[newBeads.length-4];
+      const y = beads[newBeads.length-3];
+      const distSqr = x**2 + (y-params.initialHeight)**2;
+      if (distSqr > params.linkLength**2) {
+        newBeads.push(0, params.initialHeight, 0, 0);
+      }
+
+      // Is it time for the first bead to be removed?
+      if (newBeads[1] < 0) {
+        newBeads.splice(0,4);
+      }
+
+      integration.timeSlices.push(newBeads);
+    }
+
+    function derivative(params, y) {
+      const effStiffness = params.linkStiffness / params.beadMass;
+      const onPlatform = (x) => y[x+1] == params.initialHeight && y[x] < params.platformWidth/2 && y[x] > -params.platformWidth/2;
+      let dy = Array(y.length);
+      let ax, ay;
+      let dist, dispx, dispy, relStress;
+
+      for (let i = 0; i < y.length; i = i + 4) {
+        // is the bead on the platform?
+
+        // First do the position, that's simple
+        dy[i  ] = y[i+2];
+        if (onPlatform(i)) {
+          dy[i+1] = 0;
+        } else {
+          dy[i+1] = y[i+3];
+        }
+
+        // Now let's figure out the change in velocity
+        dy[i+2] = 0; // Just initializing it!
+        if (onPlatform(i)) {
+          dy[i+3] = 0;
+        } else {
+          dy[i+3] = -params.gravity;
+        }
+
+
+        // Add the force of the links
+        if (i > 0) {
+          // a = (k/m) * x/|x| * (|x| - L)
+          // a = (k/m) * x * (1 - L/|x|)
+          dispx = (y[i  ] - y[i-4]);
+          dispy = (y[i+1] - y[i-3]);
+          dist = Math.sqrt(dispx**2 + dispy**2);
+          if (dist > params.linkLength) {
+            relStress = 1 - params.linkLength / dist;
+            ax = effStiffness * dispx * relStress;
+            ay = effStiffness * dispy * relStress;
+            dy[i+2] -= ax;
+            if (!onPlatform(i) || ay < 0) dy[i+3] -= ay;
+            dy[i-2] += ax;
+            if (!onPlatform(i-4) || ay > 0) dy[i-1] += ay;
+          }
+        }
+      }
+
+      return dy;
+    }
+
+    // One step of an euler integration
+    function euler(t, y, dydt, dt) {
+      const dy = numeric.mul(dt, dydt(t, y));
+      return numeric.add(y, dy);
+    }
+
+    function onReadyStateChange() {
+      if (!initialized && document.readyState !== "loading") {
+        initialize();
+      }
+    }
+    document.addEventListener("readystatechange", onReadyStateChange);
+    onReadyStateChange();
+  </script>
   <style>
     body {
       background-size: 20px 20px;
@@ -27,7 +396,7 @@
       box-shadow: 0px 0px 5px black;
     }
 
-    #simulation-canvas {
+    #canvas {
       box-sizing: border-box;
       width: 100%;
       height: calc(100vh - 4em);
@@ -71,6 +440,14 @@
       font-size: small;
       margin-top: 1em;
       display: block
+    }
+
+    #overlayInfo {
+      position: absolute;
+      left: 0.5em;
+      bottom: 3em;
+      color: red;
+      font-size: small;
     }
 
     #controls {
@@ -122,355 +499,51 @@
 
   <div id="parameters">
     <div class="header">
-      <button id="close-parameters" onclick="closeParameters()">❌</button>
+      <button id="closeParameters">❌</button>
       <h2>Parameters</h2>
     </div>
     <label>Bead mass (g):
-      <input id="bead-mass" type="number" value="5" step="any" onchange="setParameter()">
+      <input id="beadMass" type="number" value="5" step="any">
     </label>
     <label>Link length (mm):
-      <input id="link-length" type="number" value="5" step="any" onchange="setParameter()">
+      <input id="linkLength" type="number" value="5" step="any">
     </label>
     <label>Initial height (m):
-      <input id="initial-height" type="number" value="1" step="any" onchange="setParameter()">
+      <input id="initialHeight" type="number" value="1" step="any">
     </label>
     <label>Integration time step (ms):
-      <input id="time-step-size" type="number" value="1" step="any" onchange="setParameter()">
+      <input id="timeStepSize" type="number" value="1" step="any">
+    </label>
+    <label>Initial velocity (m/s):
+      <input id="velocity" type="number" value="50" step="any">
+    </label>
+    <label>Link stiffness (g/s^2):
+      <input id="linkStiffness" type="number" value="100000" step="any">
+    </label>
+    <label>Gravity (m/s^2):
+      <input id="gravity" type="number" value="9.8" step="any">
+    </label>
+    <label>Platform width (cm):
+      <input id="platformWidth" type="number" value="5" step="any">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>
 
-  <canvas id="simulation-canvas"></canvas>
+  <canvas id="canvas"></canvas>
+
+  <div id="overlayInfo">Hello!</div>
 
   <div id="controls">
-    <button id="toggle-play" onclick="togglePlay()">▶️</button>
+    <button id="togglePlay">▶️</button>
     <label>Time (s):
-      <input id="time" type="number" value="0" step="any" min="0" onchange="userSetTime()">
+      <input id="animationTime" type="number" value="0" step="any" min="0">
     </label>
-    <button id="toggle-parameters" onclick="toggleParameters()">
+    <button id="toggleParameters">
       ⚙ <span class="extra-content">Parameters</span>
     </button>
     <a id="export" href="" download="mould-integration.json">
       💾 <span class="extra-content">Export integration data</span>
     </a>
   </div>
-
-  <script>
-    // UI elements
-    let elParameters = document.getElementById("parameters");
-    let elTogglePlay = document.getElementById("toggle-play");
-    let elTime = document.getElementById("time");
-    let elBeadMass = document.getElementById("bead-mass");
-    let elLinkLength = document.getElementById("link-length");
-    let elInitialHeight = document.getElementById("initial-height");
-    let elTimeStepSize = document.getElementById("time-step-size");
-    let elCanvas = document.getElementById("simulation-canvas");
-    let ctx = elCanvas.getContext("2d");
-
-    // Constants
-    let platformWidth = 0.02;
-    let platformHeight = 0.02;
-    let platformColour = "#000000";
-    let beadRadius = 0.01;
-    let beadColour = "#FF0000";
-    let linkWidth = 0.005
-    let linkColour = "#0000FF";
-
-    // Global variables
-    let currentIntegration;
-    let lastFrameTime;
-    let curAnimationTime = 0; // This time might not coincide with an integration step.
-    let animationPlaying = false;
-    let firstFrame = true;
-
-    // When the toggle parameters UI button is clicked
-    function toggleParameters() {
-      if(elParameters.style.visibility === "hidden") {
-        elParameters.style.visibility = "visible";
-      } else {
-        elParameters.style.visibility = "hidden";
-      }
-    }
-
-    // When the close parameters UI button is clicked
-    function closeParameters() {
-      elParameters.style.visibility = "hidden";
-    }
-
-    // When one of the parameters are set
-    function setParameter() {
-      setCurrentIntegration(newIntegration());
-    }
-
-    // When the UI play button is clicked
-    function togglePlay() {
-      if (animationPlaying) {
-        pauseAnimation();
-      } else {
-        playAnimation();
-      }
-    }
-
-    function playAnimation() {
-      animationPlaying = true;
-      firstFrame = true;
-      elTogglePlay.innerHTML = "⏸";
-    }
-
-    function pauseAnimation() {
-      animationPlaying = false;
-      elTogglePlay.innerHTML = "▶️";
-    }
-
-    function setAnimationTime(time) {
-      curAnimationTime = time;
-      if (currentIntegration) {
-        let timeStepSize = currentIntegration.parameters.timeStepSize;
-        let timeIndex = Math.floor(time / timeStepSize);
-        time = timeIndex * timeStepSize;
-      }
-      elTime.value = time;
-    }
-
-    // When the UI time value is changed by the user
-    function userSetTime() {
-      let time = Number(elTime.value);
-      if (time < 0) time = 0;
-      setAnimationTime(time);
-    }
-
-    /**
-    START INTEGRATION MATH
-    **/
-
-    // Create an object representing a whole integration
-    function newIntegration() {
-      let beadMass = Number(elBeadMass.value);
-      let linkLength = Number(elLinkLength.value) / 1000;
-      let initialHeight = Number(elInitialHeight.value);
-      let timeStepSize = Number(elTimeStepSize.value) / 1000;
-      let gravity = 9.8 // m.s**-2
-      // Link stiffness (s**-2.g**-1) derived from k=F/dx where k is the link
-      // stiffness, F is a known force (gravity) and dx is a known displacement
-      // (half the link length). Basically, under gravity, the link should stretch
-      // to 1.5 * link length.
-      let linkStiffness = (gravity / beadMass) / (0.1 * linkLength);
-
-      return {
-        parameters: {
-          beadMass: beadMass,
-          linkLength: linkLength,
-          initialHeight: initialHeight,
-          timeStepSize: timeStepSize,
-          gravity: gravity,
-          linkStiffness: linkStiffness
-        },
-        timeSteps: [
-          {
-            beads: [
-              {
-                x: 0,
-                y: initialHeight,
-                vx: 5,
-                vy: 5,
-                ax: 0, // Used and populated during integration
-                ay: 0 // Used and populated during integration
-              }
-            ]
-          }
-        ]
-      };
-    }
-
-    // Integrate one time step. Modifies existing integration object.
-    function integrate(integration) {
-      // Add a new timeStep object to integration.timeSteps array
-      let params = integration.parameters;
-
-      let timeSteps = integration.timeSteps;
-      let curTimeStep = timeSteps[timeSteps.length - 1];
-      let curBeads = curTimeStep.beads;
-      let newTimeStep = { beads: [] };
-
-      if (timeSteps.length < 10) {
-        console.log("Time: " + timeSteps.length - 1);
-        console.log(curBeads);
-      }
-
-      // Find forces acting on each bead
-      for (let i = 0; i < curBeads.length; i++) {
-        // gravity
-        curBeads[i].ay += -params.gravity;
-
-        // Link tension
-        if (i < curBeads.length - 1) {
-          let dx = curBeads[i+1].x - curBeads[i].x;
-          let dy = curBeads[i+1].y - curBeads[i].y;
-          let linkLength = Math.sqrt(dx**2 + dy**2);
-          let linkDisplacement = linkLength - params.linkLength;
-          if (linkDisplacement > 0) {
-            curBeads[i].ax += params.linkStiffness * dx / params.beadMass;
-            curBeads[i].ay += params.linkStiffness * dy / params.beadMass;
-            curBeads[i+1].ax -= params.linkStiffness * dx / params.beadMass;
-            curBeads[i+1].ay -= params.linkStiffness * dy / params.beadMass;
-          }
-        }
-      }
-
-      // Integrate bead velocity and position
-      newTimeStep.beads = curBeads.map(function(bead) {
-        let updatedBead = {
-          x: bead.x + bead.vx * params.timeStepSize,
-          y: bead.y + bead.vy * params.timeStepSize,
-          vx: bead.vx + bead.ax * params.timeStepSize,
-          vy: bead.vy + bead.ay * params.timeStepSize,
-          ax: 0, // Will be filled out in the next integration
-          ay: 0 // Will be filled out in the next integration
-        };
-        // If the bead hasn't cleared the platform, it can't move below
-        // the initial height.
-        if (bead.y >= params.initialHeight
-          && bead.x <= platformWidth/2 && bead.x >= -platformWidth/2
-          && updatedBead.y < params.initialHeight) {
-          updatedBead.y = params.initialHeight;
-          updatedBead.vy = 0;
-        }
-        return updatedBead;
-      });
-
-      // Spawn new bead if nessesary
-      let lastBead = newTimeStep.beads[newTimeStep.beads.length-1];
-      let dx = lastBead.x;
-      let dy = lastBead.y - params.initialHeight;
-      let distFromOrigin = Math.sqrt(dx**2 + dy**2);
-      if (distFromOrigin > params.linkLength) {
-        newTimeStep.beads.push({
-          x: 0, y: params.initialHeight, vx: 0, vy: 0, ax: 0, ay: 0
-        });
-      }
-
-      // Remove first bead if nessesary
-      if(newTimeStep.beads[0].y < 0) {
-        newTimeStep.beads.shift();
-      }
-
-      integration.timeSteps.push(newTimeStep);
-    }
-
-    /**
-    END INTEGRATION MATH
-    **/
-
-    function integrateUntil(integration, endTimeStep) {
-      while (integration.timeSteps.length-1 < endTimeStep) {
-        integrate(integration);
-      }
-    }
-
-    // Draw an integration at a particular time step onto a 2d context
-    function draw(integration, timeIndex, ctx) {
-      let initialHeight = integration.parameters.initialHeight;
-      let timeStep = integration.timeSteps[timeIndex];
-      let beads = timeStep.beads;
-
-      // TODO: Do this properly
-      ctx.clearRect(-500, -500, 1000, 1000);
-
-      // Draw platform
-      ctx.beginPath();
-      ctx.rect(-platformWidth/2, initialHeight - platformHeight,
-        platformWidth, platformHeight);
-      //ctx.rect(-5, -5, 10, 10);
-      ctx.fillStyle = platformColour;
-      ctx.fill();
-      ctx.closePath();
-
-      // Draw floor
-      ctx.beginPath();
-      ctx.rect(0, 0, ctx.canvas.width, -platformHeight);
-      ctx.fillStyle = platformColour;
-      ctx.fill();
-      ctx.closePath();
-
-      // Draw links
-      ctx.beginPath();
-      ctx.moveTo(beads[0].x, beads[0].y);
-      beads.forEach(function(bead, index) {
-        if (index > 0) ctx.lineTo(bead.x, bead.y);
-      });
-      ctx.lineWidth = linkWidth;
-      ctx.strokeStyle = linkColour;
-      ctx.stroke();
-      ctx.closePath();
-
-      // Draw beads
-      ctx.fillStyle = beadColour;
-      beads.forEach(function(bead) {
-        ctx.beginPath();
-        ctx.arc(bead.x, bead.y, beadRadius, 0, Math.PI*2);
-        ctx.fill();
-        ctx.closePath();
-      });
-    }
-
-    function onAnimationFrame(frameTime) {
-      if (currentIntegration) {
-
-        // If animation is playing progress animation time.
-        // Don't progress on first frame since the lastFrameTime could
-        // have been very long ago.
-        if (animationPlaying) {
-          if (!firstFrame && lastFrameTime) {
-            setAnimationTime(curAnimationTime + (frameTime - lastFrameTime)/1000);
-          } else {
-            firstFrame = false;
-          }
-          lastFrameTime = frameTime;
-        }
-
-        let timeStepSize = currentIntegration.parameters.timeStepSize;
-        let curTimeIndex = Math.floor(curAnimationTime / timeStepSize);
-
-        integrateUntil(currentIntegration, curTimeIndex);
-        draw(currentIntegration, curTimeIndex, ctx);
-      }
-
-      window.requestAnimationFrame(onAnimationFrame);
-    }
-
-    function setCanvasTransform() {
-      if (currentIntegration) {
-        let initialHeight = currentIntegration.parameters.initialHeight;
-        let scaleFactor = elCanvas.height/(1.5*initialHeight);
-        ctx.setTransform(scaleFactor, 0, 0, -scaleFactor, 50, ctx.canvas.height);
-      }
-    }
-
-    function onCanvasResize() {
-      /* NOTE: At the moment, this only fires on window resize,
-         which is most likely when the canvas will resize.
-         When ResizeObserver gets implemented in browsers,
-         use that instead. */
-
-      let canvasRect = elCanvas.getBoundingClientRect();
-      elCanvas.width = canvasRect.width;
-      elCanvas.height = canvasRect.height;
-      setCanvasTransform();
-    }
-
-    function setCurrentIntegration(integration) {
-      pauseAnimation();
-      setAnimationTime(0);
-      elTime.step = integration.parameters.timeStepSize;
-      currentIntegration = integration;
-      setCanvasTransform();
-    }
-
-    window.addEventListener("resize", onCanvasResize);
-    onCanvasResize();
-    setCurrentIntegration(newIntegration());
-    window.requestAnimationFrame(onAnimationFrame);
-
-  </script>
 </body>
 </html>

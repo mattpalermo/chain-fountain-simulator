@@ -237,7 +237,6 @@
       params.linkStiffness = Number(UI.params.linkStiffness.value);
       params.gravity = Number(UI.params.gravity.value);
       params.platformWidth = Number(UI.params.platformWidth.value) / 100;
-      console.log(params);
       return params;
     }
 
@@ -289,9 +288,20 @@
 
       newBeads = beads;
       for (let i = 0; i<1; i++) {
-        sol = numeric.dopri(0,dt/1,newBeads,(t, y) => derivative(params, y),1e-12,10000)
-        newBeads = sol.y[sol.y.length-1];
+        //sol = numeric.dopri(0,dt/1,newBeads,(t, y) => derivative(params, y),1e-12,10000)
+        //newBeads = sol.y[sol.y.length-1];
         //let newBeads = euler(0, beads, (t, y) => derivative(params, y), dt);
+        newBeads = implicitEuler(0, beads, (t, y) => derivative(params, y), dt);
+      }
+
+      // Make sure beads didn't fall through the platform
+      for (let i = 0; i < newBeads.length; i = i + 4) {
+        if (beads[i+1] >= params.initialHeight && beads[i] <= params.platformWidth/2 && beads[i] >= -params.platformWidth/2) {
+          if (newBeads[i+1] < params.initialHeight) {
+            newBeads[i+1] = params.initialHeight;
+            newBeads[i+3] = 0;
+          }
+        }
       }
 
       // Is it time for a new bead at the source?
@@ -322,10 +332,10 @@
 
         // First do the position, that's simple
         dy[i  ] = y[i+2];
-        if (onPlatform(i)) {
-          dy[i+1] = 0;
-        } else {
+        if (!onPlatform(i) || y[i+3] > 0) {
           dy[i+1] = y[i+3];
+        } else {
+          dy[i+1] = 0;
         }
 
         // Now let's figure out the change in velocity
@@ -363,6 +373,30 @@
     function euler(t, y, dydt, dt) {
       const dy = numeric.mul(dt, dydt(t, y));
       return numeric.add(y, dy);
+    }
+
+    // One step of a backwards euler integration
+    function implicitEuler(t, y, dydt, dt) {
+      const add = numeric.add;
+      const mul = numeric.mul;
+      const sub = numeric.sub;
+      const abs = numeric.abs;
+      const tol = 1e-10;
+      let i, err;
+      let t1 = t + dt;
+      let y1 = y;
+      let y1new;
+
+      for (i = 0; i < 1000; i++) {
+        y1new = add(y, mul(dt, dydt(t1, y1)));
+        err = abs(sub(y1new, y1));
+        if (numeric.all(numeric.lt(err, tol))) {
+          break;
+        }
+        y1 = y1new;
+      }
+
+      return y1new;
     }
 
     function onReadyStateChange() {

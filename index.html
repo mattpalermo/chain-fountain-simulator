@@ -4,11 +4,9 @@
   <meta charset="utf-8" />
   <title>Chain fountain simulator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="numeric-1.2.6.js"></script>
   <script>
-    const platformHeight = 0.02;
-    const platformColour = "#000000";
-    const beadRadius = 0.01;
+    const beakerColour = "#000000";
+    const beadRadius = 0.005;
     const beadColour = "#FF0000";
     const linkWidth = 0.005
     const linkColour = "#0000FF";
@@ -34,13 +32,15 @@
 
       // Most UI controls
       ids = ["parameters", "closeParameters", "toggleParameters",
-        "togglePlay", "animationTime", "canvas", "overlayInfo"];
+        "togglePlay", "animationTime", "canvas",
+        "integrationProgress", "maxHeight"];
       ids.forEach((id) => UI[id] = document.getElementById(id));
 
       // Parameter inputs
       ids = ["beadMass", "linkLength", "initialHeight",
-        "timeStepSize", "velocity", "linkStiffness", "gravity",
-        "platformWidth"];
+        "timeStepSize", "linkStiffness", "gravity",
+        "beakerWidth", "beakerHeight", "beakerThickness", "beakerStiffness",
+        "totalBeads"];
       ids.forEach((id) => UI.params[id] = document.getElementById(id));
 
       // also put the canvas ctx in here
@@ -62,7 +62,6 @@
     }
 
     function setIntegration(integration) {
-      UI.overlayInfo.textContent = "integration set";
       stopIntegrationLoop();
       pause();
       state.integration = integration;
@@ -126,34 +125,32 @@
     }
 
     function drawIntegration(timeIndex) {
+      const params = state.integration.params;
       const initialHeight = state.integration.params.initialHeight;
-      const platformWidth = state.integration.params.platformWidth;
       const beads = state.integration.timeSlices[timeIndex];
+      const walls = state.integration.beakerWalls;
       const ctx = UI.ctx;
 
       // TODO: Do this properly
       ctx.clearRect(-500, -500, 1000, 1000);
 
-      // Draw platform
+      // Draw beaker
       ctx.beginPath();
-      ctx.rect(-platformWidth/2, initialHeight - platformHeight,
-        platformWidth, platformHeight);
-      //ctx.rect(-5, -5, 10, 10);
-      ctx.fillStyle = platformColour;
-      ctx.fill();
-      ctx.closePath();
-
-      // Draw floor
-      ctx.beginPath();
-      ctx.rect(0, 0, UI.canvas.width, -platformHeight);
-      ctx.fillStyle = platformColour;
-      ctx.fill();
+      ctx.moveTo(walls[0], walls[1]);
+      for (let i=0; i<walls.length; i=i+2) {
+        if (i>0) ctx.lineTo(walls[i], walls[i+1]);
+      }
+      ctx.lineWidth = params.beakerThickness;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = beakerColour;
+      ctx.stroke();
       ctx.closePath();
 
       // Draw links
       ctx.beginPath();
       ctx.moveTo(beads[0], beads[1]);
-      for (let i = 0;  i < beads.length; i = i + 4) {
+      for (let i = 0;  i < beads.length; i=i+2) {
         if (i > 0) ctx.lineTo(beads[i], beads[i+1]);
       }
       ctx.lineWidth = linkWidth;
@@ -163,12 +160,19 @@
 
       // Draw beads
       ctx.fillStyle = beadColour;
-      for (let i = 0; i < beads.length; i = i + 4) {
+      for (let i = 0; i < beads.length; i=i+2) {
         ctx.beginPath();
         ctx.arc(beads[i], beads[i+1], beadRadius, 0, Math.PI*2);
         ctx.fill();
         ctx.closePath();
       }
+
+      // Display some information
+      let maxHeight = 0;
+      for (let i = 0; i < beads.length; i=i+4) {
+        if (beads[i+1] > maxHeight) maxHeight = beads[i+1];
+      }
+      UI.maxHeight.textContent = maxHeight;
     }
 
     function initUICallbacks() {
@@ -233,24 +237,14 @@
       params.linkLength = Number(UI.params.linkLength.value) / 1000;
       params.initialHeight = Number(UI.params.initialHeight.value);
       params.timeStepSize = Number(UI.params.timeStepSize.value) / 1000;
-      params.velocity = Number(UI.params.velocity.value);
       params.linkStiffness = Number(UI.params.linkStiffness.value);
       params.gravity = Number(UI.params.gravity.value);
-      params.platformWidth = Number(UI.params.platformWidth.value) / 100;
+      params.beakerWidth = Number(UI.params.beakerWidth.value) / 100;
+      params.beakerHeight = Number(UI.params.beakerHeight.value) / 100;
+      params.beakerThickness = Number(UI.params.beakerThickness.value) / 100;
+      params.beakerStiffness = Number(UI.params.beakerStiffness.value);
+      params.totalBeads = Number(UI.params.totalBeads.value);
       return params;
-    }
-
-    // Create an object representing a whole integration
-    function newIntegration(params) {
-      //const vxy = params.velocity / Math.sqrt(2);
-      return {
-        params: params,
-        timeSlices: [
-          [ // (t_0)
-            0, params.initialHeight, params.velocity, params.velocity // Initial bead
-          ]
-        ]
-      };
     }
 
     function startIntegrationLoop() {
@@ -271,7 +265,7 @@
         if (lastTime < state.animationTime + bufferRoom) {
           integrate(state.integration);
           const newTime = lastTime + state.integration.params.timeStepSize;
-          UI.overlayInfo.textContent = "Integration progress (s): " + newTime;
+          UI.integrationProgress.textContent = newTime;
           setTimeout(integrationLoop);
         } else {
           setTimeout(integrationLoop, 100);
@@ -279,124 +273,182 @@
       }
     }
 
-    // Integrate one time step...?
+    // Create an object representing a whole integration
+    function newIntegration(params) {
+      const integration = {
+        params: params,
+        beakerWalls: beakerWalls(params),
+        timeSlices: []
+      };
+
+      const initialBeads = [];
+      const coilLinkWidth = Math.floor(params.beakerWidth / params.linkLength);
+      const beakerLinkHeight = Math.ceil(params.beakerHeight / params.linkLength);
+      const beakerLinkThickness = Math.ceil(params.beakerThickness / params.linkLength);
+      let beadCount = 0;
+      let y = params.initialHeight - params.linkLength;
+      let x = params.beakerWidth/2 + beakerLinkThickness * params.linkLength;
+      initialBeads.push(x, y);
+      for (let k = 0; k < beakerLinkHeight+1; k++) {
+        y += params.linkLength;
+        initialBeads.push(x,y);
+        beadCount++;
+      }
+      for (let k = 0; k < beakerLinkThickness; k++) {
+        x -= params.linkLength;
+        initialBeads.push(x, y);
+        beadCount++;
+      }
+      for (let k = 0; k < beakerLinkHeight; k++) {
+        y -= params.linkLength;
+        initialBeads.push(x, y);
+        beadCount++;
+      }
+      let i = 0;
+      let di = -1;
+      for (; beadCount < params.totalBeads; beadCount++) {
+        x += di * params.linkLength;
+        i += di;
+        if (i <= -coilLinkWidth || i >= 0) di = -di;
+        initialBeads.push(x, y);
+      }
+
+      integration.timeSlices.push(initialBeads);
+      return integration;
+    }
+
+    // Integrate one time step
     function integrate(integration) {
       const params = integration.params;
       const dt = params.timeStepSize;
-      const beads = integration.timeSlices[integration.timeSlices.length-1];
-      let newBeads, sol;
+      const curIdx = integration.timeSlices.length - 1;
+      const beads = integration.timeSlices[curIdx];
+      const curAccel = acceleration(integration, beads);
+      let newBeads = Array(beads.length);
+      let prevBeads;
+      if (curIdx > 0) prevBeads = integration.timeSlices[curIdx-1];
 
-      newBeads = beads;
-      for (let i = 0; i<1; i++) {
-        //sol = numeric.dopri(0,dt/1,newBeads,(t, y) => derivative(params, y),1e-12,10000)
-        //newBeads = sol.y[sol.y.length-1];
-        //let newBeads = euler(0, beads, (t, y) => derivative(params, y), dt);
-        newBeads = implicitEuler(0, beads, (t, y) => derivative(params, y), dt);
-      }
-
-      // Make sure beads didn't fall through the platform
-      for (let i = 0; i < newBeads.length; i = i + 4) {
-        if (beads[i+1] >= params.initialHeight && beads[i] <= params.platformWidth/2 && beads[i] >= -params.platformWidth/2) {
-          if (newBeads[i+1] < params.initialHeight) {
-            newBeads[i+1] = params.initialHeight;
-            newBeads[i+3] = 0;
+      for (let i = 0; i < beads.length; i=i+2) {
+        if (beads[i+1] <= 0) { // Beads stick to the floor immediately
+          newBeads[i] = beads[i];
+          newBeads[i+1] = 0;
+        } else { // Integrate using the verlet method
+          if (curIdx > 0) {
+            newBeads[i] = 2*beads[i] - prevBeads[i] + curAccel[i] * dt**2;
+            newBeads[i+1] = 2*beads[i+1] - prevBeads[i+1] + curAccel[i+1] * dt**2;
+          } else { // Assume the initial velocity = 0
+            newBeads[i] = beads[i] + curAccel[i] * (dt**2) / 2;
+            newBeads[i+1] = beads[i+1] + curAccel[i+1] * (dt**2) / 2;
           }
         }
-      }
-
-      // Is it time for a new bead at the source?
-      const x = beads[newBeads.length-4];
-      const y = beads[newBeads.length-3];
-      const distSqr = x**2 + (y-params.initialHeight)**2;
-      if (distSqr > params.linkLength**2) {
-        newBeads.push(0, params.initialHeight, 0, 0);
-      }
-
-      // Is it time for the first bead to be removed?
-      if (newBeads[1] < 0) {
-        newBeads.splice(0,4);
       }
 
       integration.timeSlices.push(newBeads);
     }
 
-    function derivative(params, y) {
-      const effStiffness = params.linkStiffness / params.beadMass;
-      const onPlatform = (x) => y[x+1] == params.initialHeight && y[x] < params.platformWidth/2 && y[x] > -params.platformWidth/2;
-      let dy = Array(y.length);
+    function acceleration(integration, y) {
+      const params = integration.params;
+      const effLinkStiffness = params.linkStiffness / params.beadMass;
+      const effBeakerStiffness = params.beakerStiffness / params.beadMass;
+      const walls = integration.beakerWalls;
+      let a = Array(y.length);
       let ax, ay;
       let dist, dispx, dispy, relStress;
+      let wallLength, lineProj, minDist2, wallDist, absAccel;
+      let WPv = Array(2);
+      let Wv = Array(2);
+      let pointDists2 = Array(walls.length/2);
+      let perpProjs = Array(walls.length-2);
+      let wallDists2 = Array(pointDists2.length-1);
 
-      for (let i = 0; i < y.length; i = i + 4) {
-        // is the bead on the platform?
+      for (let i = 0; i < y.length; i=i+2) {
+        // Initialize acceleration
+        a[i] = 0;
+        a[i+1] = 0;
 
-        // First do the position, that's simple
-        dy[i  ] = y[i+2];
-        if (!onPlatform(i) || y[i+3] > 0) {
-          dy[i+1] = y[i+3];
-        } else {
-          dy[i+1] = 0;
-        }
-
-        // Now let's figure out the change in velocity
-        dy[i+2] = 0; // Just initializing it!
-        if (onPlatform(i)) {
-          dy[i+3] = 0;
-        } else {
-          dy[i+3] = -params.gravity;
-        }
+        // Force of gravity
+        a[i+1] -= params.gravity;
 
 
-        // Add the force of the links
+        // Forces of link between this bead and the previous bead
         if (i > 0) {
           // a = (k/m) * x/|x| * (|x| - L)
           // a = (k/m) * x * (1 - L/|x|)
-          dispx = (y[i  ] - y[i-4]);
-          dispy = (y[i+1] - y[i-3]);
+          dispx = (y[i  ] - y[i-2]);
+          dispy = (y[i+1] - y[i-1]);
           dist = Math.sqrt(dispx**2 + dispy**2);
-          if (dist > params.linkLength) {
-            relStress = 1 - params.linkLength / dist;
-            ax = effStiffness * dispx * relStress;
-            ay = effStiffness * dispy * relStress;
-            dy[i+2] -= ax;
-            if (!onPlatform(i) || ay < 0) dy[i+3] -= ay;
-            dy[i-2] += ax;
-            if (!onPlatform(i-4) || ay > 0) dy[i-1] += ay;
+          relStress = 1 - params.linkLength / dist;
+          ax = effLinkStiffness * dispx * relStress;
+          ay = effLinkStiffness * dispy * relStress;
+          a[i] -= ax;
+          a[i+1] -= ay;
+          a[i-2] += ax;
+          a[i-1] += ay;
+        }
+
+
+        // Add repulsive force of beaker
+        // Distance to verticies
+        for (let j = 0; j < walls.length; j=j+2) {
+          pointDists2[j/2] = (y[i] - walls[j])**2 + (y[i+1] - walls[j+1])**2;
+        }
+        // Distance to walls
+        for (let j = 0; j < walls.length-2; j=j+2) {
+          wallLength = Math.sqrt((walls[j+2] - walls[j])**2 + (walls[j+3] - walls[j+1])**2);
+          Wv[0] = walls[j+2] - walls[j];
+          Wv[1] = walls[j+3] - walls[j+1];
+          WPv[0] = y[i] - walls[j];
+          WPv[1] = y[i+1] - walls[j+1];
+          lineProj = ((WPv[0])*(Wv[0])+(WPv[1])*(Wv[1])) / wallLength;
+          if (lineProj >= 0 && lineProj <= wallLength) { // A line can be drawn perpendicularly from the wall to the point
+            perpProjs[j] = WPv[0] - lineProj * Wv[0] / wallLength;
+            perpProjs[j+1] = WPv[1] - lineProj * Wv[1] / wallLength;
+            wallDists2[j/2] = perpProjs[j]**2 + perpProjs[j+1]**2;
+          } else { // Don't worry about this wall
+            wallDists2[j/2] = Infinity;
           }
         }
-      }
-
-      return dy;
-    }
-
-    // One step of an euler integration
-    function euler(t, y, dydt, dt) {
-      const dy = numeric.mul(dt, dydt(t, y));
-      return numeric.add(y, dy);
-    }
-
-    // One step of a backwards euler integration
-    function implicitEuler(t, y, dydt, dt) {
-      const add = numeric.add;
-      const mul = numeric.mul;
-      const sub = numeric.sub;
-      const abs = numeric.abs;
-      const tol = 1e-10;
-      let i, err;
-      let t1 = t + dt;
-      let y1 = y;
-      let y1new;
-
-      for (i = 0; i < 1000; i++) {
-        y1new = add(y, mul(dt, dydt(t1, y1)));
-        err = abs(sub(y1new, y1));
-        if (numeric.all(numeric.lt(err, tol))) {
-          break;
+        // Find overall min distance to beaker and apply force
+        minDist2 = Math.min(...wallDists2, ...pointDists2);
+        if (minDist2 < (params.beakerThickness/2)**2) { // We have a hit!
+          if (Math.min(...wallDists2) < Math.min(...pointDists2)) { // Find the min wall
+            for (let j = 0; j < wallDists2.length; j++) {
+              if (wallDists2[j] == minDist2) {
+                wallDist = Math.sqrt(wallDists2[j]);
+                absAccel = effBeakerStiffness * (params.beakerThickness/2 - wallDist);
+                a[i] += absAccel * perpProjs[2*j] / wallDist;
+                a[i+1] += absAccel * perpProjs[2*j+1] / wallDist;
+                break;
+              }
+            }
+          } else { // find the min point
+            for (let j = 0; j < pointDists2.length; j++) {
+              if (pointDists2[j] == minDist2) {
+                wallDist = Math.sqrt(pointDists2[j]);
+                absAccel = effBeakerStiffness * (params.beakerThickness/2 - wallDist);
+                a[i] += absAccel * (y[i] - walls[2*j]) / wallDist;
+                a[i+1] += absAccel * (y[i+1] - walls[2*j+1]) / wallDist;
+                break;
+              }
+            }
+          }
         }
-        y1 = y1new;
-      }
 
-      return y1new;
+      }
+      return a;
+    }
+
+    function beakerWalls(params) {
+      const w = params.beakerWidth;
+      const h = params.beakerHeight;
+      const t = params.beakerThickness;
+      const y = params.initialHeight;
+      return [
+        -(w+t)/2, y+h-t/2,
+        -(w+t)/2, y-t/2,
+         (w+t)/2, y-t/2,
+         (w+t)/2, y+h-t/2
+      ]
     }
 
     function onReadyStateChange() {
@@ -469,7 +521,7 @@
       text-align: right;
       margin: 0.2em 0;
     }
-    #parameters input { width: 8ch }
+    #parameters input { width: 10ch }
     #parameters em {
       font-size: small;
       margin-top: 1em;
@@ -548,24 +600,36 @@
     <label>Integration time step (ms):
       <input id="timeStepSize" type="number" value="1" step="any">
     </label>
-    <label>Initial velocity (m/s):
-      <input id="velocity" type="number" value="50" step="any">
-    </label>
     <label>Link stiffness (g/s^2):
-      <input id="linkStiffness" type="number" value="100000" step="any">
+      <input id="linkStiffness" type="number" value="1000000" step="any">
     </label>
     <label>Gravity (m/s^2):
       <input id="gravity" type="number" value="9.8" step="any">
     </label>
-    <label>Platform width (cm):
-      <input id="platformWidth" type="number" value="5" step="any">
+    <label>Beaker width (cm):
+      <input id="beakerWidth" type="number" value="10" step="any">
+    </label>
+    <label>Beaker height (cm):
+      <input id="beakerHeight" type="number" value="10" step="any">
+    </label>
+    <label>Beaker thickness (cm):
+      <input id="beakerThickness" type="number" value="5" step="any">
+    </label>
+    <label>Beaker stiffness (g/s^2):
+      <input id="beakerStiffness" type="number" value="1000000" step="any">
+    </label>
+    <label>Total beads:
+      <input id="totalBeads" type="number" value="5000" step="1" min="0">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>
 
   <canvas id="canvas"></canvas>
 
-  <div id="overlayInfo">Hello!</div>
+  <div id="overlayInfo">
+    <div>Integration progress: <span id="integrationProgress"</span></div>
+    <div>Max height: <span id="maxHeight"></span></div>
+  </div>
 
   <div id="controls">
     <button id="togglePlay">▶️</button>

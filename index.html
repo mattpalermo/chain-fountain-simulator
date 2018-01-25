@@ -38,7 +38,7 @@
 
       // Parameter inputs
       ids = ["beadMass", "linkLength", "initialHeight",
-        "timeStepSize", "linkStiffness", "gravity",
+        "timeStepSize", "substeps", "linkStiffness", "gravity",
         "beakerWidth", "beakerHeight", "beakerThickness", "beakerStiffness",
         "totalBeads"];
       ids.forEach((id) => UI.params[id] = document.getElementById(id));
@@ -237,6 +237,7 @@
       params.linkLength = Number(UI.params.linkLength.value) / 1000;
       params.initialHeight = Number(UI.params.initialHeight.value);
       params.timeStepSize = Number(UI.params.timeStepSize.value) / 1000;
+      params.substeps = Number(UI.params.substeps.value);
       params.linkStiffness = Number(UI.params.linkStiffness.value);
       params.gravity = Number(UI.params.gravity.value);
       params.beakerWidth = Number(UI.params.beakerWidth.value) / 100;
@@ -320,38 +321,53 @@
     // Integrate one time step
     function integrate(integration) {
       const params = integration.params;
-      const dt = params.timeStepSize;
       const curIdx = integration.timeSlices.length - 1;
-      const beads = integration.timeSlices[curIdx];
-      const curAccel = acceleration(integration, beads);
+      let beads = integration.timeSlices[curIdx];
       let newBeads = Array(beads.length);
-      let prevBeads;
-      if (curIdx > 0) prevBeads = integration.timeSlices[curIdx-1];
+      let prevBeads, tempBeads;
+      if (curIdx > 0) prevBeads = integration.prevBeads;
+      let curAccel = Array(beads.length);
 
-      for (let i = 0; i < beads.length; i=i+2) {
-        if (beads[i+1] <= 0) { // Beads stick to the floor immediately
-          newBeads[i] = beads[i];
-          newBeads[i+1] = 0;
-        } else { // Integrate using the verlet method
-          if (curIdx > 0) {
-            newBeads[i] = 2*beads[i] - prevBeads[i] + curAccel[i] * dt**2;
-            newBeads[i+1] = 2*beads[i+1] - prevBeads[i+1] + curAccel[i+1] * dt**2;
-          } else { // Assume the initial velocity = 0
-            newBeads[i] = beads[i] + curAccel[i] * (dt**2) / 2;
-            newBeads[i+1] = beads[i+1] + curAccel[i+1] * (dt**2) / 2;
+      const dt = params.timeStepSize / params.substeps;
+
+      for (let t = 0; t < params.substeps; t++) {
+        acceleration(integration, beads, curAccel); // Sets curAccel.
+
+        for (let i = 0; i < beads.length; i=i+2) {
+          if (beads[i+1] <= 0) { // Beads stick to the floor immediately
+            newBeads[i] = beads[i];
+            newBeads[i+1] = 0;
+          } else { // Integrate using the verlet method
+            if (prevBeads) {
+              newBeads[i] = 2*beads[i] - prevBeads[i] + curAccel[i] * (dt**2);
+              newBeads[i+1] = 2*beads[i+1] - prevBeads[i+1] + curAccel[i+1] * (dt**2);
+            } else { // Assume the initial velocity = 0
+              newBeads[i] = beads[i] + curAccel[i] * (dt**2) / 2;
+              newBeads[i+1] = beads[i+1] + curAccel[i+1] * (dt**2) / 2;
+            }
           }
         }
+
+        // Don't throw away old arrays, reuse them.
+        if (prevBeads) {
+          tempBeads = prevBeads;
+        } else {
+          tempBeads = Array(beads.length);
+        }
+        prevBeads = beads;
+        beads = newBeads;
+        newBeads = tempBeads;
       }
 
-      integration.timeSlices.push(newBeads);
+      integration.timeSlices.push(beads);
+      integration.prevBeads = prevBeads;
     }
 
-    function acceleration(integration, y) {
+    function acceleration(integration, y, a) {
       const params = integration.params;
       const effLinkStiffness = params.linkStiffness / params.beadMass;
       const effBeakerStiffness = params.beakerStiffness / params.beadMass;
       const walls = integration.beakerWalls;
-      let a = Array(y.length);
       let ax, ay;
       let dist, dispx, dispy, relStress;
       let wallLength, lineProj, minDist2, wallDist, absAccel;
@@ -435,7 +451,6 @@
         }
 
       }
-      return a;
     }
 
     function beakerWalls(params) {
@@ -592,7 +607,7 @@
       <input id="beadMass" type="number" value="5" step="any">
     </label>
     <label>Link length (mm):
-      <input id="linkLength" type="number" value="5" step="any">
+      <input id="linkLength" type="number" value="10" step="any">
     </label>
     <label>Initial height (m):
       <input id="initialHeight" type="number" value="1" step="any">
@@ -600,26 +615,29 @@
     <label>Integration time step (ms):
       <input id="timeStepSize" type="number" value="1" step="any">
     </label>
+    <label>Integration sub-steps:
+      <input id="substeps" type="number" value="100" step="any">
+    </label>
     <label>Link stiffness (g/s^2):
-      <input id="linkStiffness" type="number" value="1000000" step="any">
+      <input id="linkStiffness" type="number" value="10000000" step="any">
     </label>
     <label>Gravity (m/s^2):
       <input id="gravity" type="number" value="9.8" step="any">
     </label>
     <label>Beaker width (cm):
-      <input id="beakerWidth" type="number" value="10" step="any">
+      <input id="beakerWidth" type="number" value="8" step="any">
     </label>
     <label>Beaker height (cm):
-      <input id="beakerHeight" type="number" value="10" step="any">
+      <input id="beakerHeight" type="number" value="2" step="any">
     </label>
     <label>Beaker thickness (cm):
       <input id="beakerThickness" type="number" value="5" step="any">
     </label>
     <label>Beaker stiffness (g/s^2):
-      <input id="beakerStiffness" type="number" value="1000000" step="any">
+      <input id="beakerStiffness" type="number" value="10000000" step="any">
     </label>
     <label>Total beads:
-      <input id="totalBeads" type="number" value="5000" step="1" min="0">
+      <input id="totalBeads" type="number" value="500" step="1" min="0">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>

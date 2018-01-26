@@ -189,15 +189,15 @@
     }
 
     function toggleParameters() {
-      if(UIParameters.style.visibility === "hidden") {
-        elParameters.style.visibility = "visible";
+      if(UI.parameters.style.visibility === "hidden") {
+        UI.parameters.style.visibility = "visible";
       } else {
-        elParameters.style.visibility = "hidden";
+        UI.parameters.style.visibility = "hidden";
       }
     }
 
     function closeParameters() {
-      elParameters.style.visibility = "hidden";
+      UI.parameters.style.visibility = "hidden";
     }
 
     function paramChanged() {
@@ -282,37 +282,51 @@
         timeSlices: []
       };
 
-      const initialBeads = [];
+      const initialBeads = Array(2*params.totalBeads);
       const coilLinkWidth = Math.floor(params.beakerWidth / params.linkLength);
       const beakerLinkHeight = Math.ceil(params.beakerHeight / params.linkLength);
       const beakerLinkThickness = Math.ceil(params.beakerThickness / params.linkLength);
-      let beadCount = 0;
+      let j = 0;
       let y = params.initialHeight - params.linkLength;
       let x = params.beakerWidth/2 + beakerLinkThickness * params.linkLength;
-      initialBeads.push(x, y);
+      initialBeads[j] = x;
+      initialBeads[j+1] = y;
+      j+=2;
       for (let k = 0; k < beakerLinkHeight+1; k++) {
         y += params.linkLength;
-        initialBeads.push(x,y);
-        beadCount++;
+        initialBeads[j] = x;
+        initialBeads[j+1] = y;
+        j+=2;
       }
       for (let k = 0; k < beakerLinkThickness; k++) {
         x -= params.linkLength;
-        initialBeads.push(x, y);
-        beadCount++;
+        initialBeads[j] = x;
+        initialBeads[j+1] = y;
+        j+=2;
       }
       for (let k = 0; k < beakerLinkHeight; k++) {
         y -= params.linkLength;
-        initialBeads.push(x, y);
-        beadCount++;
+        initialBeads[j] = x;
+        initialBeads[j+1] = y;
+        j+=2;
       }
       let i = 0;
       let di = -1;
-      for (; beadCount < params.totalBeads; beadCount++) {
+      for (; j < 2*params.totalBeads; j+=2) {
         x += di * params.linkLength;
         i += di;
         if (i <= -coilLinkWidth || i >= 0) di = -di;
-        initialBeads.push(x, y);
+        initialBeads[j] = x;
+        initialBeads[j+1] = y;
       }
+
+      integration.spawning = {
+        x: x,
+        y: y,
+        i: i,
+        di: di,
+        coilLinkWidth: coilLinkWidth
+      };
 
       integration.timeSlices.push(initialBeads);
       return integration;
@@ -321,42 +335,55 @@
     // Integrate one time step
     function integrate(integration) {
       const params = integration.params;
+      const s = integration.spawning;
       const curIdx = integration.timeSlices.length - 1;
       let beads = integration.timeSlices[curIdx];
       let newBeads = Array(beads.length);
       let prevBeads, tempBeads;
       if (curIdx > 0) prevBeads = integration.prevBeads;
       let curAccel = Array(beads.length);
+      let beadsOnFloor = 0;
 
       const dt = params.timeStepSize / params.substeps;
 
       for (let t = 0; t < params.substeps; t++) {
         acceleration(integration, beads, curAccel); // Sets curAccel.
+        beadsOnFloor = 0;
 
         for (let i = 0; i < beads.length; i=i+2) {
-          if (beads[i+1] <= 0) { // Beads stick to the floor immediately
-            newBeads[i] = beads[i];
+          if (prevBeads) {
+            newBeads[i] = 2*beads[i] - prevBeads[i] + curAccel[i] * (dt**2);
+            newBeads[i+1] = 2*beads[i+1] - prevBeads[i+1] + curAccel[i+1] * (dt**2);
+          } else { // Assume the initial velocity = 0
+            newBeads[i] = beads[i] + curAccel[i] * (dt**2) / 2;
+            newBeads[i+1] = beads[i+1] + curAccel[i+1] * (dt**2) / 2;
+          }
+          // Beads contacting the floor are constrained inelastically.
+          if (newBeads[i+1] <= 0 | beads[i+1] <= 0) {
             newBeads[i+1] = 0;
-          } else { // Integrate using the verlet method
-            if (prevBeads) {
-              newBeads[i] = 2*beads[i] - prevBeads[i] + curAccel[i] * (dt**2);
-              newBeads[i+1] = 2*beads[i+1] - prevBeads[i+1] + curAccel[i+1] * (dt**2);
-            } else { // Assume the initial velocity = 0
-              newBeads[i] = beads[i] + curAccel[i] * (dt**2) / 2;
-              newBeads[i+1] = beads[i+1] + curAccel[i+1] * (dt**2) / 2;
-            }
+            beadsOnFloor++;
           }
         }
 
-        // Don't throw away old arrays, reuse them.
-        if (prevBeads) {
-          tempBeads = prevBeads;
-        } else {
-          tempBeads = Array(beads.length);
+        // If there are enough beads on the floor, respawn them in the beaker.
+        for (let i = 0; beadsOnFloor > 20 && i < 100; i++) {
+          if (t == 0) beads = beads.slice(); // Can't modify beads during t=0, need to copy it.
+          if (newBeads[1] <= 0) beadsOnFloor--;
+          // The splice and push may be a bit slow.
+          newBeads.splice(0, 2);
+          beads.splice(0, 2); // Need to modify beads so that prevBeads will be consistent next integration step.
+          let x = newBeads[newBeads.length-2];
+          let y = newBeads[newBeads.length-1];
+          if (s.di > 0 && x + params.linkLength > params.beakerWidth/2) s.di = -s.di;
+          if (s.di < 0 && x - params.linkLength < -params.beakerWidth/2) s.di = -s.di;
+          x += s.di * params.linkLength;
+          newBeads.push(x, y);
+          beads.push(x, y); // bead only just spawned, therefore accel = 0, therefore newBead = bead.
         }
-        prevBeads = beads;
-        beads = newBeads;
-        newBeads = tempBeads;
+
+        // Don't throw away old arrays, reuse them.
+        if (!prevBeads) prevBeads = Array(beads.length);
+        [prevBeads, beads, newBeads] = [beads, newBeads, prevBeads];
       }
 
       integration.timeSlices.push(beads);
@@ -637,7 +664,7 @@
       <input id="beakerStiffness" type="number" value="10000000" step="any">
     </label>
     <label>Total beads:
-      <input id="totalBeads" type="number" value="500" step="1" min="0">
+      <input id="totalBeads" type="number" value="300" step="1" min="0">
     </label>
     <em>Note: changing parameters resets the integration</em>
   </div>

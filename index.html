@@ -33,7 +33,7 @@
 
       // Most UI controls
       ids = ["parameters", "closeParameters", "toggleParameters",
-        "togglePlay", "animationTime", "canvas",
+        "togglePlay", "animationTime", "playRate", "canvas",
         "integrationProgress", "maxHeight"];
       ids.forEach((id) => UI[id] = document.getElementById(id));
 
@@ -59,6 +59,7 @@
       let canvasRect = UI.canvas.getBoundingClientRect();
       if (state.transform && UI.canvas.height) {
         state.transform.scale *= canvasRect.height / UI.canvas.height;
+        state.transform.yPan += canvasRect.height - UI.canvas.height;
       }
       UI.canvas.width = canvasRect.width;
       UI.canvas.height = canvasRect.height;
@@ -112,9 +113,11 @@
       const lastTime = lastTimeIndex * timeStepSize;
 
       if (state.playing) {
-        if (state.lastFrameTime) {
+        const playRate = Number(UI.playRate.value);
+
+        if (state.lastFrameTime && playRate) {
           const timeDiff = (frameTime - state.lastFrameTime) / 1000;
-          const newTime = state.animationTime + timeDiff;
+          const newTime = state.animationTime + playRate * timeDiff;
           if (!(newTime > lastTime)) {
             setAnimationTime(newTime);
           } else if (!(state.animationTime > lastTime)) {
@@ -609,10 +612,33 @@
       padding: 0.3em 0.5em;
       margin: 0;
       display: flex;
-      align-items: center;
+      align-items: baseline;
       background-color: linen;
       box-shadow: 0px 0px 5px black;
     }
+    #header p {
+      margin: 0;
+      padding: 0;
+      margin-right: auto;
+    }
+
+    a:link {
+      color: inherit;
+      text-decoration: underline dotted;
+    }
+    a:visited {
+      color: inherit;
+      text-decoration: underline dotted;
+    }
+    a:hover {
+      color: purple;
+      text-decoration: underline;
+    }
+    a:active {
+      color: purple;
+      text-decoration: underline;
+    }
+
 
     #canvas {
       box-sizing: border-box;
@@ -625,12 +651,12 @@
 
     #parameters {
       position: absolute;
-      top: 3em;
-      right: 1em;
+      top: 2.5em;
+      right: 0.5em;
       box-sizing: border-box;
       width: 20em;
-      max-width: calc(100vw - 2em);
-      max-height: calc(100vh - 6em);
+      max-width: calc(100vw - 1em);
+      max-height: calc(100vh - 5em);
       overflow: auto;
       background-color: white;
       box-shadow: 2px 2px 5px black;
@@ -676,17 +702,18 @@
       padding: 0;
       margin: 0;
       display: flex;
-      align-items: center;
+      align-items: baseline;
       background-color: linen;
       box-shadow: 0px 0px 2px black;
     }
     #controls > * {margin-left: 0.5em; margin-right: 0.5em}
-    #controls label {margin-right: auto }
-    #controls input { width: 8ch }
+    #controls .left {margin: 0; padding: 0; margin-right: auto;  }
+    #controls .right {margin: 0; padding: 0}
+    #controls input { width: 7ch }
 
     h1 {
       margin: 0;
-      margin-right: auto;
+      margin-right: 0.5em;
       padding: 0;
       font-size: 1.3em;
       font-weight: normal;
@@ -698,11 +725,16 @@
       padding: 0;
     }
 
-    @media (max-width: 25em) {
+    @media (max-width: 35em) {
       #header .extra-content { display: none }
     }
-    @media (max-width: 35em) {
+    @media (max-width: 40em) {
       #controls .extra-content { display: none }
+    }
+    @media (max-width: 20em) {
+      #controls #export { display: none }
+      #parameters input { width: 7ch }
+      #parameters label { font-size: small }
     }
 
   </style>
@@ -710,9 +742,19 @@
 <body>
   <div id="header">
     <h1>Chain fountain simulator</h1>
+    <p><span class="extra-content">
+      by <a href="#">Matthew Palermo</a>, 2018
+    </span></p>
     <a href="https://github.com/mattpalermo/chain-fountain-simulator">
       (?) <span class="extra-content">About</span>
     </a>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <div id="overlayInfo">
+    <div>Integration progress: <span id="integrationProgress"</span></div>
+    <div>Max height: <span id="maxHeight"></span></div>
   </div>
 
   <div id="parameters">
@@ -736,7 +778,7 @@
       <input id="substeps" type="number" value="100" step="any">
     </label>
     <label>Link stiffness (g/s^2):
-      <input id="linkStiffness" type="number" value="10000000" step="any">
+      <input id="linkStiffness" type="number" value="1e7" step="any">
     </label>
     <label>Gravity (m/s^2):
       <input id="gravity" type="number" value="9.8" step="any">
@@ -751,7 +793,7 @@
       <input id="beakerThickness" type="number" value="5" step="any">
     </label>
     <label>Beaker stiffness (g/s^2):
-      <input id="beakerStiffness" type="number" value="10000000" step="any">
+      <input id="beakerStiffness" type="number" value="1e7" step="any">
     </label>
     <label>Total beads:
       <input id="totalBeads" type="number" value="300" step="1" min="0">
@@ -759,24 +801,24 @@
     <em>Note: changing parameters resets the integration</em>
   </div>
 
-  <canvas id="canvas"></canvas>
-
-  <div id="overlayInfo">
-    <div>Integration progress: <span id="integrationProgress"</span></div>
-    <div>Max height: <span id="maxHeight"></span></div>
-  </div>
-
   <div id="controls">
-    <button id="togglePlay">▶️</button>
-    <label>Time (s):
-      <input id="animationTime" type="number" value="0" step="any" min="0">
-    </label>
-    <button id="toggleParameters">
-      ⚙ <span class="extra-content">Parameters</span>
-    </button>
-    <a id="export" href="" download="mould-integration.json">
-      💾 <span class="extra-content">Export integration data</span>
-    </a>
+    <div class="left">
+      <button id="togglePlay">▶️</button>
+      <label><span class="extra-content">Time</span> (s):
+        <input id="animationTime" type="number" value="0" step="any" min="0">
+      </label>
+      <label><span class="extra-content">Play rate</span> x
+        <input id="playRate" type="number" value="1" step="any">
+      </label>
+    </div>
+    <div class="right">
+      <button id="toggleParameters">
+        ⚙ <span class="extra-content">Parameters</span>
+      </button>
+      <a id="export" href="" download="mould-integration.json">
+        💾 <span class="extra-content">Export integration data</span>
+      </a>
+    </div>
   </div>
 </body>
 </html>

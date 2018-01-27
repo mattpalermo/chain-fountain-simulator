@@ -5,6 +5,7 @@
   <title>Chain fountain simulator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script>
+    const floorColour = "#000000";
     const beakerColour = "#000000";
     const beadRadius = 0.005;
     const beadColour = "#FF0000";
@@ -56,9 +57,12 @@
 
     function fixCanvasSize() {
       let canvasRect = UI.canvas.getBoundingClientRect();
+      if (state.transform && UI.canvas.height) {
+        state.transform.scale *= canvasRect.height / UI.canvas.height;
+      }
       UI.canvas.width = canvasRect.width;
       UI.canvas.height = canvasRect.height;
-      resetCanvasTransform();
+      setCanvasTransform();
     }
 
     function setIntegration(integration) {
@@ -84,8 +88,18 @@
     function resetCanvasTransform() {
       if (!state.integration) return;
       let initialHeight = state.integration.params.initialHeight;
-      let scaleFactor = UI.canvas.height/(1.5*initialHeight);
-      UI.ctx.setTransform(scaleFactor, 0, 0, -scaleFactor, 50, UI.canvas.height);
+      state.transform = {
+        scale: UI.canvas.height/(1.5*initialHeight),
+        xPan: 50,
+        yPan: UI.canvas.height
+      };
+      setCanvasTransform();
+    }
+
+    function setCanvasTransform() {
+      if (!state.transform) return;
+      const t = state.transform;
+      UI.ctx.setTransform(t.scale, 0, 0, -t.scale, t.xPan, t.yPan);
     }
 
     function startDrawLoop() {
@@ -133,6 +147,13 @@
 
       // TODO: Do this properly
       ctx.clearRect(-500, -500, 1000, 1000);
+
+      // Draw floor
+      ctx.beginPath();
+      ctx.rect(-100, 0, 200, -0.1);
+      ctx.fillStyle = floorColour;
+      ctx.fill();
+      ctx.closePath();
 
       // Draw beaker
       ctx.beginPath();
@@ -186,6 +207,16 @@
       // Simulation controls
       UI.togglePlay.addEventListener("click", togglePlay);
       UI.animationTime.addEventListener("change", userSetAnimationTime);
+      // Mouse controls
+      UI.canvas.addEventListener("mousedown", mouseDown);
+      UI.canvas.addEventListener("mouseup", mouseUp);
+      UI.canvas.addEventListener("mousemove", mouseMove);
+      UI.canvas.addEventListener("wheel", mouseScroll);
+      UI.canvas.addEventListener("touchstart", touchChange);
+      UI.canvas.addEventListener("touchend", touchChange);
+      UI.canvas.addEventListener("touchcancel", touchChange);
+      UI.canvas.addEventListener("touchmove", touchMove);
+      UI.canvas.addEventListener("dblclick", togglePlay);
     }
 
     function toggleParameters() {
@@ -229,6 +260,65 @@
       let time = Number(UI.animationTime.value);
       setAnimationTime(time<0 ? 0 : time);
       startIntegrationLoop();
+    }
+
+    function mouseDown() {
+      state.panning = true;
+      state.lastMousePos = undefined;
+    }
+
+    function mouseUp() {
+      state.panning = false;
+      state.lastMousePos = undefined;
+    }
+
+    function mouseMove(e) {
+      if (state.panning && state.lastMousePos) {
+        state.transform.xPan += e.clientX - state.lastMousePos.x;
+        state.transform.yPan += e.clientY - state.lastMousePos.y;
+        setCanvasTransform();
+      }
+      state.lastMousePos = {x: e.clientX, y: e.clientY};
+    }
+
+    function mouseScroll(e) {
+      zoomIn(1 - e.deltaY / 100, e.clientX, e.clientY);
+    }
+
+    function touchChange(e) {
+      // e.touches gives us all the current touches. Let's update our state with that.
+      state.touches = [];
+      for (let i = 0; i < e.touches.length; i++) {
+        state.touches.push(Touch(e.touches[i])); // Gotta copy it just in case.
+      }
+    }
+
+    function touchMove(e) {
+      if (touches.length !== 2) return;
+      let dx, dy;
+
+      const last = state.touches;
+      dx = last[0].screenX - last[1].screenX;
+      dy = last[0].screenY - last[1].screenY;
+      lastDist = Math.sqrt(dx**2 + dy**2);
+
+      const cur = e.touches;
+      dx = cur[0].screenX - cur[1].screenX;
+      dy = cur[0].screenY - cur[1].screenY;
+      curDist = Math.sqrt(dx**2 + dy**2);
+
+      zoomIn(curDist / lastDist);
+    }
+
+    function zoomIn(factor, centerx, centery) {
+      if (centerx === undefined) centerx = UI.canvas.width/2;
+      if (centery === undefined) centery = UI.canvas.height/2;
+      console.log(factor);
+      const T = state.transform;
+      T.scale *= factor;
+      T.xPan = (1-factor) * (centerx - T.xPan) + T.xPan;
+      T.yPan = (1-factor) * (centery - T.yPan) + T.yPan;
+      setCanvasTransform();
     }
 
     function readParameters() {
@@ -540,7 +630,7 @@
       box-sizing: border-box;
       width: 20em;
       max-width: calc(100vw - 2em);
-      max-height: 100vh;
+      max-height: calc(100vh - 6em);
       overflow: auto;
       background-color: white;
       box-shadow: 2px 2px 5px black;

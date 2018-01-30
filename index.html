@@ -1,3 +1,20 @@
+<!--
+Copyright (C) 2018  Matthew Palermo
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -31,6 +48,8 @@
     // Performs set up after DOM content has loaded
     function initialize() {
       UI = getUI();
+      parseQueryString();
+      window.addEventListener("popstate", onPopState);
       state = {};
       initResizeFixing();
       setIntegration(newIntegration(readParameters()));
@@ -59,6 +78,20 @@
       // also put the canvas ctx in here
       UI.ctx = UI.canvas.getContext("2d");
       return UI
+    }
+
+    function parseQueryString() {
+      const urlParams = new URLSearchParams(document.location.search);
+      Object.values(UI.params).forEach(function(paramInput) {
+        if (urlParams.has(paramInput.id)) {
+          paramInput.value = urlParams.get(paramInput.id);
+        }
+      });
+    }
+
+    function onPopState() {
+      parseQueryString();
+      setIntegration(newIntegration(readParameters()));
     }
 
     function initResizeFixing() {
@@ -247,7 +280,13 @@
     }
 
     function paramChanged() {
-      setIntegration(newIntegration(readParameters()));
+      let newParams = readParameters();
+      setIntegration(newIntegration(newParams));
+      let newURL = new URL(document.location);
+      Object.keys(newParams).forEach(function(paramName) {
+        newURL.searchParams.set(paramName, newParams[paramName]);
+      });
+      history.pushState(null, "", newURL);
     }
 
     function togglePlay() {
@@ -328,7 +367,6 @@
     function zoomIn(factor, centerx, centery) {
       if (centerx === undefined) centerx = UI.canvas.width/2;
       if (centery === undefined) centery = UI.canvas.height/2;
-      console.log(factor);
       const T = state.transform;
       T.scale *= factor;
       T.xPan = (1-factor) * (centerx - T.xPan) + T.xPan;
@@ -339,15 +377,15 @@
     function readParameters() {
       const params = {};
       params.beadMass = Number(UI.params.beadMass.value);
-      params.linkLength = Number(UI.params.linkLength.value) / 1000;
+      params.linkLength = Number(UI.params.linkLength.value);
       params.initialHeight = Number(UI.params.initialHeight.value);
-      params.timeStepSize = Number(UI.params.timeStepSize.value) / 1000;
+      params.timeStepSize = Number(UI.params.timeStepSize.value);
       params.substeps = Number(UI.params.substeps.value);
       params.linkStiffness = Number(UI.params.linkStiffness.value);
       params.gravity = Number(UI.params.gravity.value);
-      params.beakerWidth = Number(UI.params.beakerWidth.value) / 100;
-      params.beakerHeight = Number(UI.params.beakerHeight.value) / 100;
-      params.beakerThickness = Number(UI.params.beakerThickness.value) / 100;
+      params.beakerWidth = Number(UI.params.beakerWidth.value);
+      params.beakerHeight = Number(UI.params.beakerHeight.value);
+      params.beakerThickness = Number(UI.params.beakerThickness.value);
       params.beakerStiffness = Number(UI.params.beakerStiffness.value);
       params.totalBeads = Number(UI.params.totalBeads.value);
       return params;
@@ -753,7 +791,7 @@
 </head>
 <body>
   <div id="header">
-    <h1>Chain fountain simulator</h1>
+    <a href="?"><h1>Chain fountain simulator</h1></a>
     <p><span class="extra-content">
       by <a href="https://github.com/mattpalermo">Matthew Palermo</a>, 2018
     </span></p>
@@ -777,14 +815,14 @@
     <label>Bead mass (g):
       <input id="beadMass" type="number" value="5" step="any">
     </label>
-    <label>Link length (mm):
-      <input id="linkLength" type="number" value="10" step="any">
+    <label>Link length (m):
+      <input id="linkLength" type="number" value="0.01" step="any">
     </label>
     <label>Initial height (m):
       <input id="initialHeight" type="number" value="1" step="any">
     </label>
-    <label>Integration time step (ms):
-      <input id="timeStepSize" type="number" value="1" step="any">
+    <label>Integration time step (s):
+      <input id="timeStepSize" type="number" value="0.001" step="any">
     </label>
     <label>Integration sub-steps:
       <input id="substeps" type="number" value="100" step="any">
@@ -795,14 +833,14 @@
     <label>Gravity (m/s^2):
       <input id="gravity" type="number" value="9.8" step="any">
     </label>
-    <label>Beaker width (cm):
-      <input id="beakerWidth" type="number" value="8" step="any">
+    <label>Beaker width (m):
+      <input id="beakerWidth" type="number" value="0.08" step="any">
     </label>
-    <label>Beaker height (cm):
-      <input id="beakerHeight" type="number" value="2" step="any">
+    <label>Beaker height (m):
+      <input id="beakerHeight" type="number" value="0.02" step="any">
     </label>
-    <label>Beaker thickness (cm):
-      <input id="beakerThickness" type="number" value="5" step="any">
+    <label>Beaker thickness (m):
+      <input id="beakerThickness" type="number" value="0.05" step="any">
     </label>
     <label>Beaker stiffness (g/s^2):
       <input id="beakerStiffness" type="number" value="1e7" step="any">

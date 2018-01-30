@@ -7,7 +7,7 @@ The chain fountain simulator is a web app which runs a physics simulation of the
 
 ## Introduction
 
-When a chain in a beaker is pulled over the side of the beaker, the chain will start siphoning out of the beaker as expected. But if the conditions are right, the chain will leap out of the beaker, reaching an impressive height before it starts falling to the ground, forming a fountain shape. You can see this clearly in [Mould's video](https://www.youtube.com/watch?v=_dQJBBklpQQ) [(1)]. Surprisingly this effect was relatively unknown before Mould's 2013 video and so the Mould effect is an affectionate alternative name [(2)]. Since then, a fair amount of work concerning the Mould effect has been published (see [Appendix - List of published work](#appendix-list-of-published-work)).
+When a chain in a beaker is pulled over the side of the beaker, the chain will start siphoning out of the beaker as expected. But if the conditions are right, the chain will leap out of the beaker, reaching an impressive height before it starts falling to the ground, forming a fountain shape. You can see this clearly in [Mould's video](https://www.youtube.com/watch?v=_dQJBBklpQQ) [(1)]. Surprisingly this effect was relatively unknown before Mould's 2013 video and so the Mould effect is an affectionate alternative name [(2)]. Since then, a fair amount of work concerning the Mould effect has been published (see [Appendix - List of published work](#appendix---list-of-published-work)).
 
 The chain fountain is interesting because it is tricky to explain. Biggins & Warner [(2)] show that in an intuitive model where a resting chain is simply yanked up into a siphoning motion, no chain fountain forms. You may be able to see this for yourself as Biggins & Warner's analysis is relatively accessable. One explaination for the lack of fountain is that the process of new chain being yanked up into motion by the rest of the chain is a [perfectly inelastic collision](https://en.wikipedia.org/wiki/Inelastic_collision#Perfectly_inelastic_collision) which will dissipate a lot of energy (actually the most possible) [(3)]. In order to produce a chain fountain, Biggins & Warner predict that an extra anomolous force from the beaker is required in order to provide the chain with enough energy to leap out of the beaker. When I was initially presented with this explaination, it seemed unbeleivable. But now, after experimenting with the simulator, it is more clear that this is true (see [Results](#results)). I think a deeper understanding of the pickup interaction would help.
 
@@ -55,19 +55,22 @@ This program is licensed under the [GPLv3](https://choosealicense.com/licenses/g
 
 1. <span id="bib1">Steve Mould. Self siphoning beads [Internet]. 2013 [cited 2018 Jan 30]. Available from: https://www.youtube.com/watch?v=_dQJBBklpQQ
 </span>
+
 2. <span id="bib2">Biggins JS, Warner M. Understanding the chain fountain. Proceedings of the Royal Society A: Mathematical, Physical and Engineering Science [Internet]. 2014 Mar 8;470(2163). Available from: http://rspa.royalsocietypublishing.org/content/470/2163/20130689
 </span>
+
 3. <span id="bib3">Inelastic collision. In: Wikipedia [Internet]. 2017 [cited 2018 Jan 30]. Available from: https://en.wikipedia.org/w/index.php?title=Inelastic_collision&oldid=806063088
 </span>
+
 4. <span id="bib4">Biggins JS. Growth and shape of a chain fountain. EPL [Internet]. 2014 [cited 2018 Jan 30];106(4):44001. Available from: http://stacks.iop.org/0295-5075/106/i=4/a=44001</span>
 
-[(1)]: #bib1
-[(2)]: #bib2
-[(3)]: #bib3
-[(4)]: #bib4
-[(5)]: #bib5
-[(6)]: #bib6
-[(7)]: #bib7
+[(1)]: #bibliography
+[(2)]: #bibliography
+[(3)]: #bibliography
+[(4)]: #bibliography
+[(5)]: #bibliography
+[(6)]: #bibliography
+[(7)]: #bibliography
 
 ## Appendix - List of published works
 

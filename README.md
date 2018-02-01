@@ -7,15 +7,15 @@ The chain fountain simulator is a web app which runs a physics simulation of the
 
 ## Introduction
 
-When a chain in a beaker is pulled over the side of the beaker, the chain will start siphoning out of the beaker as expected. But if the conditions are right, the chain will leap out of the beaker, reaching an impressive height before it starts falling to the ground, forming a fountain shape. You can see this clearly in [Mould's video](https://www.youtube.com/watch?v=_dQJBBklpQQ) [(1)]. Surprisingly this effect was relatively unknown before Mould's 2013 video and so the Mould effect is an affectionate alternative name [(2)]. Since then, a fair amount of work concerning the Mould effect has been published (see [Appendix - List of published work](#appendix---list-of-published-work)).
+When a chain in a beaker is pulled over the side of the beaker, the chain will start siphoning out of the beaker as expected. But if the conditions are right, the chain will leap out of the beaker, reaching an impressive height before it starts falling to the ground, forming a fountain shape. You can see this clearly in [Mould's video](https://www.youtube.com/watch?v=_dQJBBklpQQ) [(1)]. Surprisingly this effect was relatively unknown before Mould's 2013 video and so the Mould effect is an affectionate, alternative name [(2)]. Since then, a fair amount of work concerning the Mould effect has been published (see [List of published work](#list-of-published-work)).
 
-The chain fountain is interesting because it is tricky to explain. Biggins & Warner [(2)] show that in an intuitive model where a resting chain is simply yanked up into a siphoning motion, no chain fountain forms. You may be able to see this for yourself as Biggins & Warner's analysis is relatively accessable. One explaination for the lack of fountain is that the process of new chain being yanked up into motion by the rest of the chain is a [perfectly inelastic collision](https://en.wikipedia.org/wiki/Inelastic_collision#Perfectly_inelastic_collision) which will dissipate a lot of energy (actually the most possible) [(3)]. In order to produce a chain fountain, Biggins & Warner predict that an extra anomolous force from the beaker is required in order to provide the chain with enough energy to leap out of the beaker. When I was initially presented with this explaination, it seemed unbeleivable. But now, after experimenting with the simulator, it is more clear that this is true (see [Results](#results)). I think a deeper understanding of the pickup interaction would help.
+The chain fountain is interesting because it is tricky to explain. Biggins & Warner [(2)] show that in an intuitive model where a resting chain is simply yanked up into a siphoning motion, no chain fountain forms. You may be able to see this for yourself by following Biggins & Warner's analysis which is reproduced in a friendly step by step [tutorial by Isaac Physics](https://isaacphysics.org/questions/chain_fountain) [(3)]. In this idealized model, the chain pickup interaction is assumed to occur within a closed system, with no interaction between chain and beaker, so it is a [perfectly inelastic collision](https://en.wikipedia.org/wiki/Inelastic_collision#Perfectly_inelastic_collision) [(4)] which dissipates a lot of energy. In order to produce a chain fountain, Biggins & Warner predict the beaker must provide an extra anomolous force. They offer a possible mechanism for this force through assuming the chain can't exceed some maximum possible curvature. When I was initially presented with this explaination, it seemed unbeleivable. By experimenting with the simulator, it seems (so far at least) that a anomolous beaker force is required and can even occur without a maximum curvature (see [Results](#results)).
 
-So the initial objective for the chain fountain numerical experiment is to find a minimal model that would reproduce a chain fountain. The nature of the beaker - chain interaction in the minimal model will contribute evidence to support or refute the anomolous force hypothesis. Actually, Biggins & Warner [(2)] provide a brief description of their numerical experiment which they claim did reproduce a fountain using an ellastic beaker - chain interaction. The methods used in this simulator are an elaboration on their description (see [Methods](#methods)) and does reproduce their results (see [Results](#results)). Once a minimal model is found and a chain fountain is reproduced, the minimal model can be used to help us understand and get a feel for what the anomolous force might be physically.
+A chain fountain simulator will let us run many numerical experiments and further explore this dynamic physics. The first goal for the simulator is to let us find a minimal model that will produce a chain fountain. The nature of the beaker - chain interaction in the minimal model will help us understand the anomolous force theory. Actually, Biggins & Warner [(2)] provide a brief description of their numerical experiment which did produce a fountain using an ellastic beaker - chain interaction. The methods used in this simulator have been based on this description (see [Methods](#methods)) and can reproduce their results (see [Results](#results)).
 
-Once we have a model which can reproduce a chain fountain, we can try reproducing predictions and observations about the chain fountain and perhaps making some of our own predictions and observations. For example the chain fountain is predicted and observed to typically reach a height of 1.2×initial height [(2)]. Additionally the chain fountain will grow at a rate of ∝t<sup>2</sup> [(4)]. If the numerical error can be reduced low enough, I expect to observe both of these (see [Results](#results)). Try reading through the some of the [list of published works](#appendix-list-of-published-works) to find more predictions that could be tested.
+A secondary goal is to reproduce predictions and observations of the chain fountain and perhaps making some of our own predictions. For example the chain fountain is predicted and observed to typically reach a height of 1.2×initial height [(2)]. Additionally the chain fountain will grow at a rate of ∝t<sup>2</sup> [(5)]. If the numerical error can be reduced low enough, I expect to observe both of these (see [Results](#results)). In the simulator, it seems that the width of the beaker has a significant effect on the chain fountain height. Try reading through the some of the [List of published work](#list-of-published-work) to find more properties that could be tested.
 
-Given the accessibility of the Mould effect, another objective of the simulator is for itself to be accessible. As a web app, this will let anyone experiment with the chain fountain whatever their familiarity with numerics or their ability to obtain many long chains and beakers. We are lucky to now live in a world where web pages are interactive, performant and run on pretty much everything so I'd like to explore this with respect to visual, scientific, numerical experiments. This also provides an opportunity to make download, modification and redistribution as accessible as possible if all the source code is written in a single HTML file. This choice of platform does present some challenges for scientific computing but, in this case at least, it hasn't become a limiting factor.
+Given the accessibility of the Mould effect, another goal for the simulator is for itself to be accessible. As a web app, this will let anyone experiment with the chain fountain whatever their familiarity with numerics or their ability to obtain many long chains and beakers. We are lucky to now live in a world where web pages are interactive, performant and run on pretty much everything so I'd like to explore this with respect to visual, scientific, numerical experiments. This also provides an opportunity to make all the source code available in a single HTML file. This choice of platform does present some challenges for scientific computing but, in this case at least, it hasn't become a limiting factor.
 
 ## Usage
 
@@ -23,8 +23,8 @@ The app is designed to be easy to use, familiar and practical for presentations 
 
 Many parameters can be varied in the parameter page. Try changing the width of the beaker, it seems to have a significant affect on the chain fountain height. You'll notice that changing a parameter starts a new integration. Sets of parameters can be specified in the URL as shown in the following examples. The parameter URLs can be retreived from the browser URL which gets automatically updated as you change parameters.
 
-* ** Current default ** - [https://...?beadMass=5&linkLength=0.01&initialHeight=1&...](https://mattpalermo.github.io/chain-fountain-simulator/index.html?beadMass=5&linkLength=0.01&initialHeight=1&timeStepSize=0.001&substeps=100&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=300)
-* ** Double height ** - [https://...?...&initialHeight=2&...&totalBeads=600](https://mattpalermo.github.io/chain-fountain-simulator/?beadMass=5&linkLength=0.01&initialHeight=2&timeStepSize=0.001&substeps=100&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=600)
+* **Current default** - [https://...?beadMass=5&linkLength=0.01&initialHeight=1&...](https://mattpalermo.github.io/chain-fountain-simulator/index.html?beadMass=5&linkLength=0.01&initialHeight=1&timeStepSize=0.001&substeps=100&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=300)
+* **Double height** - [https://...?...&initialHeight=2&...&totalBeads=600](https://mattpalermo.github.io/chain-fountain-simulator/?beadMass=5&linkLength=0.01&initialHeight=2&timeStepSize=0.001&substeps=100&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=600)
 
 
 The app can be downloaded for offline use. Just download the web page (the HTML file) of the web app. The entire app is contained in a single HTML file. Later, when you need to run the app, just open the HTML file in a browser.
@@ -53,16 +53,15 @@ This program is licensed under the [GPLv3](https://choosealicense.com/licenses/g
 
 ## Bibliography
 
-1. <span id="bib1">Steve Mould. Self siphoning beads [Internet]. 2013 [cited 2018 Jan 30]. Available from: https://www.youtube.com/watch?v=_dQJBBklpQQ
-</span>
+1. Steve Mould. Self siphoning beads [Internet]. 2013 [cited 2018 Jan 30]. Available from: https://www.youtube.com/watch?v=_dQJBBklpQQ
 
-2. <span id="bib2">Biggins JS, Warner M. Understanding the chain fountain. Proceedings of the Royal Society A: Mathematical, Physical and Engineering Science [Internet]. 2014 Mar 8;470(2163). Available from: http://rspa.royalsocietypublishing.org/content/470/2163/20130689
-</span>
+2. Biggins JS, Warner M. Understanding the chain fountain. Proceedings of the Royal Society A: Mathematical, Physical and Engineering Science [Internet]. 2014 Mar 8;470(2163). Available from: http://rspa.royalsocietypublishing.org/content/470/2163/20130689
 
-3. <span id="bib3">Inelastic collision. In: Wikipedia [Internet]. 2017 [cited 2018 Jan 30]. Available from: https://en.wikipedia.org/w/index.php?title=Inelastic_collision&oldid=806063088
-</span>
+3. The Chain Fountain [Internet]. Isaac Physics. [cited 2018 Jan 31]. Available from: https://isaacphysics.org/questions/chain_fountain
 
-4. <span id="bib4">Biggins JS. Growth and shape of a chain fountain. EPL [Internet]. 2014 [cited 2018 Jan 30];106(4):44001. Available from: http://stacks.iop.org/0295-5075/106/i=4/a=44001</span>
+4. Inelastic collision. In: Wikipedia [Internet]. 2017 [cited 2018 Jan 30]. Available from: https://en.wikipedia.org/w/index.php?title=Inelastic_collision&oldid=806063088
+
+5. Biggins JS. Growth and shape of a chain fountain. EPL [Internet]. 2014 [cited 2018 Jan 30];106(4):44001. Available from: http://stacks.iop.org/0295-5075/106/i=4/a=44001
 
 [(1)]: #bibliography
 [(2)]: #bibliography
@@ -72,7 +71,9 @@ This program is licensed under the [GPLv3](https://choosealicense.com/licenses/g
 [(6)]: #bibliography
 [(7)]: #bibliography
 
-## Appendix - List of published works
+## Appendix
+
+### List of published work
 
 This is a list of work which I am aware of. Additions to the list are welcome.
 
@@ -84,8 +85,9 @@ This is a list of work which I am aware of. Additions to the list are welcome.
 * 2017 - Modeling Nonlinear Problems in the Mechanics of Strings and Rods (Chapter 2.8, pages 78-86)
 * 2017 - Quantitative analysis of chain fountain
 * 2017 - The (not so simple) chain fountain
+* n.d. - https://isaacphysics.org/questions/chain_fountain [Accessed: 2018 Feb 1]
 
-## Appendix - Parameters
+### Parameters
 
 Some of the parameters will be self explainatory but others may not be. Here is a list of parameter descriptions:
 

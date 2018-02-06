@@ -23,8 +23,8 @@ The app is designed to be easy to use, familiar and practical for presentations 
 
 Many parameters can be varied in the parameter page. Try changing the width of the beaker, it seems to have a significant affect on the chain fountain height. You'll notice that changing a parameter starts a new integration. Sets of parameters can be specified in the URL as shown in the following examples. The parameter URLs can be retreived from the browser URL which gets automatically updated as you change parameters.
 
-* **Current default** - [https://...?beadMass=5&linkLength=0.01&initialHeight=1&...](https://mattpalermo.github.io/chain-fountain-simulator/index.html?beadMass=5&linkLength=0.01&initialHeight=1&timeStepSize=0.001&substeps=100&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=300)
-* **Double height** - [https://...?...&initialHeight=2&...&totalBeads=600](https://mattpalermo.github.io/chain-fountain-simulator/?beadMass=5&linkLength=0.01&initialHeight=2&timeStepSize=0.001&substeps=100&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=600)
+* **Current default** - [https://...?beadMass=5&linkLength=0.01&initialHeight=1&...](https://mattpalermo.github.io/chain-fountain-simulator/index.html?beadMass=5&linkLength=0.01&initialHeight=1&timeStepSize=0.001&substeps=10&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=300)
+* **Double height** - [https://...?...&initialHeight=2&...&totalBeads=600](https://mattpalermo.github.io/chain-fountain-simulator/?beadMass=5&linkLength=0.01&initialHeight=2&timeStepSize=0.001&substeps=10&linkStiffness=10000000&gravity=9.8&beakerWidth=0.08&beakerHeight=0.02&beakerThickness=0.05&beakerStiffness=10000000&totalBeads=600)
 
 
 The app can be downloaded for offline use. Just download the web page (the HTML file) of the web app. The entire app is contained in a single HTML file. Later, when you need to run the app, just open the HTML file in a browser.
@@ -73,6 +73,10 @@ All the source code for the app is in the app HTML file including javascript, CS
 If you have made some improvements and wish to encorporate them into this version, send them to me via a Github pull request or just by email. Alternatively, you're free to distribute your own version of this work as long as you respect the following license.
 
 This program is licensed under the [GPLv3](https://choosealicense.com/licenses/gpl-3.0/) (see [`./LICENSE`](./LICENSE)). You can respect this license by sharing the source code along with your work and retaining the copywrite (add your name) and GPLv3 license statement (included in the HTML file). If this doesn't work for your intended use case, get in contact.
+
+### Improvement ideas
+
+See the [issues list] for a full list of improvement ideas.
 
 ## Bibliography
 

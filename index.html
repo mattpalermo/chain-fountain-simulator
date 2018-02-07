@@ -653,60 +653,41 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       font-family: Verdana, Arial, Helvetica, sans-serif;
       margin: 0;
       padding: 0;
-    }
-
-    #header {
-      box-sizing: border-box;
-      width: 100%;
-      height: 2em;
-      padding: 0.3em 0.5em;
-      margin: 0;
       display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #header {
+      flex: 0;
+      box-shadow: 0px 0px 5px black;
+
+      display: flex;
+      padding: 0.3em 0.5em;
       align-items: baseline;
       background-color: linen;
-      box-shadow: 0px 0px 5px black;
     }
     #header p {
       margin: 0;
       padding: 0;
       margin-right: auto;
     }
-
-    a:link {
-      color: inherit;
-      text-decoration: underline dotted;
+    #view {
+      flex: 1 0 150px;
+      position: relative;
+      overflow: hidden;
     }
-    a:visited {
-      color: inherit;
-      text-decoration: underline dotted;
-    }
-    a:hover {
-      color: purple;
-      text-decoration: underline;
-    }
-    a:active {
-      color: purple;
-      text-decoration: underline;
-    }
-
-
     #canvas {
-      box-sizing: border-box;
+      overflow: hidden;
       width: 100%;
-      height: calc(100vh - 4em);
-      margin: 0;
-      padding: 0;
-      display: block;
+      height: 100%;
     }
-
     #parameters {
       position: absolute;
-      top: 2.5em;
-      right: 0.5em;
-      box-sizing: border-box;
-      width: 20em;
-      max-width: calc(100vw - 1em);
-      max-height: calc(100vh - 5em);
+      top: 0em;
+      right: 0em;
+      margin: 0.5em;
+      max-height: calc(100% - 2em);
+      max-width: calc(100% - 2em);
       overflow: auto;
       background-color: white;
       box-shadow: 2px 2px 5px black;
@@ -735,26 +716,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       margin-top: 1em;
       display: block
     }
-
     #overlayInfo {
       position: absolute;
-      left: 0.5em;
-      bottom: 3em;
+      left: 0;
+      bottom: 0;
+      margin: 0.5em;
       color: red;
       font-size: small;
     }
-
     #controls {
-      box-sizing: border-box;
-      overflow: auto;
-      width: 100%;
-      height: 2em;
-      padding: 0;
-      margin: 0;
+      flex: 0;
+      box-shadow: 0px 0px 2px black;
+
       display: flex;
       align-items: baseline;
       background-color: linen;
-      box-shadow: 0px 0px 2px black;
     }
     #controls > * {margin-left: 0.5em; margin-right: 0.5em}
     #controls .left {margin: 0; padding: 0; margin-right: auto;  }
@@ -775,6 +751,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       padding: 0;
     }
 
+    a:link {
+      color: inherit;
+      text-decoration: underline dotted;
+    }
+    a:visited {
+      color: inherit;
+      text-decoration: underline dotted;
+    }
+    a:hover {
+      color: purple;
+      text-decoration: underline;
+    }
+    a:active {
+      color: purple;
+      text-decoration: underline;
+    }
+
     @media (max-width: 35em) {
       #header .extra-content { display: none }
     }
@@ -791,7 +784,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 </head>
 <body>
   <div id="header">
-    <a href="?"><h1>Chain fountain simulator</h1></a>
+    <h1><a href="?">Chain fountain simulator</a></h1>
     <p><span class="extra-content">
       by <a href="https://github.com/mattpalermo">Matthew Palermo</a>, 2018
     </span></p>
@@ -799,58 +792,56 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       (?) <span class="extra-content">About</span>
     </a>
   </div>
-
-  <canvas id="canvas"></canvas>
-
-  <div id="overlayInfo">
-    <div>Integration progress: <span id="integrationProgress"</span></div>
-    <div>Max height: <span id="maxHeight"></span></div>
-  </div>
-
-  <div id="parameters">
-    <div class="header">
-      <button id="closeParameters">❌</button>
-      <h2>Parameters</h2>
+  <div id="view">
+    <canvas id="canvas"></canvas>
+    <div id="parameters">
+      <div class="header">
+        <button id="closeParameters">❌</button>
+        <h2>Parameters</h2>
+      </div>
+      <em>Note: changing parameters resets the integration</em>
+      <label>Bead mass (g):
+        <input id="beadMass" type="number" value="5" step="any">
+      </label>
+      <label>Link length (m):
+        <input id="linkLength" type="number" value="0.01" step="any">
+      </label>
+      <label>Initial height (m):
+        <input id="initialHeight" type="number" value="1" step="any">
+      </label>
+      <label>Integration time step (s):
+        <input id="timeStepSize" type="number" value="0.001" step="any">
+      </label>
+      <label>Integration sub-steps:
+        <input id="substeps" type="number" value="10" step="any">
+      </label>
+      <label>Link stiffness (g/s^2):
+        <input id="linkStiffness" type="number" value="1e7" step="any">
+      </label>
+      <label>Gravity (m/s^2):
+        <input id="gravity" type="number" value="9.8" step="any">
+      </label>
+      <label>Beaker width (m):
+        <input id="beakerWidth" type="number" value="0.08" step="any">
+      </label>
+      <label>Beaker height (m):
+        <input id="beakerHeight" type="number" value="0.02" step="any">
+      </label>
+      <label>Beaker thickness (m):
+        <input id="beakerThickness" type="number" value="0.05" step="any">
+      </label>
+      <label>Beaker stiffness (g/s^2):
+        <input id="beakerStiffness" type="number" value="1e7" step="any">
+      </label>
+      <label>Total beads:
+        <input id="totalBeads" type="number" value="300" step="1" min="0">
+      </label>
     </div>
-    <label>Bead mass (g):
-      <input id="beadMass" type="number" value="5" step="any">
-    </label>
-    <label>Link length (m):
-      <input id="linkLength" type="number" value="0.01" step="any">
-    </label>
-    <label>Initial height (m):
-      <input id="initialHeight" type="number" value="1" step="any">
-    </label>
-    <label>Integration time step (s):
-      <input id="timeStepSize" type="number" value="0.001" step="any">
-    </label>
-    <label>Integration sub-steps:
-      <input id="substeps" type="number" value="10" step="any">
-    </label>
-    <label>Link stiffness (g/s^2):
-      <input id="linkStiffness" type="number" value="1e7" step="any">
-    </label>
-    <label>Gravity (m/s^2):
-      <input id="gravity" type="number" value="9.8" step="any">
-    </label>
-    <label>Beaker width (m):
-      <input id="beakerWidth" type="number" value="0.08" step="any">
-    </label>
-    <label>Beaker height (m):
-      <input id="beakerHeight" type="number" value="0.02" step="any">
-    </label>
-    <label>Beaker thickness (m):
-      <input id="beakerThickness" type="number" value="0.05" step="any">
-    </label>
-    <label>Beaker stiffness (g/s^2):
-      <input id="beakerStiffness" type="number" value="1e7" step="any">
-    </label>
-    <label>Total beads:
-      <input id="totalBeads" type="number" value="300" step="1" min="0">
-    </label>
-    <em>Note: changing parameters resets the integration</em>
+    <div id="overlayInfo">
+      <div>Integration progress: <span id="integrationProgress"</span></div>
+      <div>Max height: <span id="maxHeight"></span></div>
+    </div>
   </div>
-
   <div id="controls">
     <div class="left">
       <button id="togglePlay">▶️</button>

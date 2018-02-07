@@ -328,15 +328,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     function mouseMove(e) {
       if (state.panning && state.lastMousePos) {
-        state.transform.xPan += e.clientX - state.lastMousePos.x;
-        state.transform.yPan += e.clientY - state.lastMousePos.y;
-        setCanvasTransform();
+        pan(e.clientX - state.lastMousePos.x, e.clientY - state.lastMousePos.y);
       }
       state.lastMousePos = {x: e.clientX, y: e.clientY};
     }
 
     function mouseScroll(e) {
-      zoomIn(1 - e.deltaY / 100, e.clientX, e.clientY);
+      zoom(1 - e.deltaY / 100, e.clientX, e.clientY);
     }
 
     function touchChange(e) {
@@ -348,29 +346,48 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     }
 
     function touchMove(e) {
-      if (state.touches.length !== 2) return;
-      let dx, dy;
+      if (state.touches.length === 2) {
+        e.preventDefault();
+        let dx, dy;
 
-      const last = state.touches;
-      dx = last[0].screenX - last[1].screenX;
-      dy = last[0].screenY - last[1].screenY;
-      lastDist = Math.sqrt(dx**2 + dy**2);
+        const last = state.touches;
+        dx = last[0].screenX - last[1].screenX;
+        dy = last[0].screenY - last[1].screenY;
+        lastDist = Math.sqrt(dx**2 + dy**2);
 
-      const cur = e.touches;
-      dx = cur[0].screenX - cur[1].screenX;
-      dy = cur[0].screenY - cur[1].screenY;
-      curDist = Math.sqrt(dx**2 + dy**2);
+        const cur = e.touches;
+        dx = cur[0].screenX - cur[1].screenX;
+        dy = cur[0].screenY - cur[1].screenY;
+        curDist = Math.sqrt(dx**2 + dy**2);
 
-      zoomIn(curDist / lastDist);
+        zoom((curDist - lastDist) / lastDist + 1);
+
+      } else if (state.touches.length === 1) {
+        e.preventDefault();
+
+        const last = state.touches;
+        const cur = e.touches;
+        const dx = cur[0].clientX - last[0].clientX;
+        const dy = cur[0].clientY - last[0].clientY;
+        pan(dx, dy);
+      }
+
+      touchChange(e);
     }
 
-    function zoomIn(factor, centerx, centery) {
+    function zoom(factor, centerx, centery) {
       if (centerx === undefined) centerx = UI.canvas.width/2;
       if (centery === undefined) centery = UI.canvas.height/2;
       const T = state.transform;
       T.scale *= factor;
       T.xPan = (1-factor) * (centerx - T.xPan) + T.xPan;
       T.yPan = (1-factor) * (centery - T.yPan) + T.yPan;
+      setCanvasTransform();
+    }
+
+    function pan(dx, dy) {
+      state.transform.xPan += dx;
+      state.transform.yPan += dy;
       setCanvasTransform();
     }
 

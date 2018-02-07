@@ -343,12 +343,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       // e.touches gives us all the current touches. Let's update our state with that.
       state.touches = [];
       for (let i = 0; i < e.touches.length; i++) {
-        state.touches.push(Touch(e.touches[i])); // Gotta copy it just in case.
+        state.touches.push(new Touch(e.touches[i])); // Gotta copy it just in case.
       }
     }
 
     function touchMove(e) {
-      if (touches.length !== 2) return;
+      if (state.touches.length !== 2) return;
       let dx, dy;
 
       const last = state.touches;
